@@ -79,7 +79,15 @@ h1{font-size:clamp(38px,6vw,56px);font-weight:700;letter-spacing:-.035em;line-he
 .conn-dot.bad{background:#ff9f0a;box-shadow:0 0 10px #ff9f0a}
 
 /* stage / player */
-.stage{position:relative;flex:1;min-height:0;border-radius:22px;overflow:hidden;background:#0a0a0c;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.stage-wrap{position:relative;flex:1;min-height:0;display:flex}
+.glow{position:absolute;left:-7%;top:-12%;width:114%;height:124%;filter:blur(64px) saturate(1.45);opacity:0;transition:opacity 1.4s ease;pointer-events:none;z-index:0;transform:translateZ(0)}
+.glow.on{opacity:.7}
+.page-glow{position:fixed;left:-15%;top:-15%;width:130%;height:130%;filter:blur(110px) saturate(1.4);opacity:0;transition:opacity 1.8s ease;z-index:0;pointer-events:none;transform:translateZ(0)}
+.page-glow.on{opacity:.3}
+.ambient{transition:opacity 1.8s ease}
+body.lit .ambient{opacity:0}
+.topbar,.people{position:relative;z-index:2}
+.stage{z-index:1;position:relative;flex:1;min-height:0;border-radius:22px;overflow:hidden;background:#0a0a0c;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.6)}
 .stage video.movie,.stage #yt,.stage #yt iframe{position:absolute;inset:0;width:100%;height:100%;background:#000;border:0}
 .stage video.movie{object-fit:contain}
 .yt-shield{position:absolute;inset:0;z-index:2}
@@ -275,6 +283,7 @@ details li{margin:4px 0}
 </head>
 <body>
 <div class="ambient"><i></i><i></i><i></i></div>
+<canvas class="page-glow" id="pageGlow" width="32" height="18"></canvas>
 
 <!-- ============ HOME ============ -->
 <section id="home" class="screen">
@@ -307,6 +316,8 @@ details li{margin:4px 0}
       <button class="pill" id="codePill" title="Скопировать ссылку-приглашение"><span class="conn-dot" id="connDot"></span><span class="code" id="roomCodeLbl"></span><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
     </div>
 
+    <div class="stage-wrap">
+    <canvas class="glow" id="glow" width="64" height="36"></canvas>
     <div class="stage" id="stage">
       <video class="movie hidden" id="movie" playsinline preload="auto"></video>
       <div id="ytWrap" class="hidden"><div id="yt"></div><div class="yt-shield" id="ytShield"></div></div>
@@ -346,6 +357,7 @@ details li{margin:4px 0}
           <button class="cbtn" id="fsBtn" title="Во весь экран (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5v2H6v3zm11-5h5v5h-2V6h-3zM4 15h2v3h3v2H4zm14 0h2v5h-5v-2h3z"/></svg></button>
         </div>
       </div>
+    </div>
     </div>
     <div class="people" id="people"></div>
   </div>
@@ -421,6 +433,7 @@ details li{margin:4px 0}
       <div class="meter"><i id="gateMeter"></i><b id="gateMark"></b></div>
       <input type="range" id="gateRange" min="-75" max="-20" step="1"></div></div>
     <div class="set-row"><label>Рация (удерживать V)<small>Микрофон включён, только пока зажата клавиша V.</small></label><label class="switch"><input type="checkbox" id="pttChk"><span></span></label></div>
+    <div class="set-row"><label>Подсветка от видео<small>Цвета кадра мягко светятся вокруг плеера и по фону.</small></label><label class="switch"><input type="checkbox" id="glowChk"><span></span></label></div>
     <div class="set-row"><label>Приглушать фильм, когда говорят<small>Фильм тише, пока кто-то говорит — вас слышно лучше.</small></label><label class="switch"><input type="checkbox" id="duckChk"><span></span></label></div>
     <div class="set-row"><label>Громкость голосов</label><input type="range" id="voiceVol" min="0" max="1.5" step="0.05" style="width:160px"></div>
     <div class="tip"><svg viewBox="0 0 24 24"><path d="M3 14v-2a9 9 0 0 1 18 0v2M21 15a2 2 0 0 1-2 2h-1v-6h1a2 2 0 0 1 2 2zM3 15a2 2 0 0 0 2 2h1v-6H5a2 2 0 0 0-2 2z"/></svg>
@@ -753,6 +766,7 @@ function resetPlayer() {
   if (P.vk) { try { P.vk.destroy(); } catch {} P.vk = null; }
   const vf = $('#vkFrame'); if (vf) vf.remove();
   P.vkState = 'unstarted'; P.vkTime = 0; P.vkDur = 0; P.vkWant = false;
+  try { Glow.reset(); } catch {}
   $('#yt') || $('#ytWrap').prepend(Object.assign(document.createElement('div'), { id: 'yt' }));
   video.pause(); video.removeAttribute('src'); video.load();
   Loop.stop();
@@ -772,7 +786,7 @@ async function loadSource(s) {
   $('#ytWrap').classList.toggle('hidden', !emb);
   if (src.kind === 'vk') { await loadVK(vkParams(src.url)); return; }
 
-  if (src.kind === 'youtube') { await loadYT(ytId(src.url)); return; }
+  if (src.kind === 'youtube') { const id = ytId(src.url); Glow.thumb = new Image(); Glow.thumb.src = `https://i.ytimg.com/vi/${id}/hqdefault.jpg`; await loadYT(id); return; }
   if (src.kind === 'file') {
     const name = src.url.replace(/^file:/, '').replace(/:\d+$/, '');
     if (P.fileUrl && P.fileUrl.key === src.url) { video.src = P.fileUrl.url; }
@@ -887,6 +901,29 @@ setInterval(() => {
     if (Math.abs(diff) > 0.5) P.seek(exp);
   }
 }, 1000);
+
+/* ---------------- ambient-подсветка из кадра ---------------- */
+const Glow = {
+  on: ls.get('glow', true), active: false, fresh: false, last: 0, thumb: null, thumbDrawn: false,
+  c1: $('#glow'), c2: $('#pageGlow'),
+  init() { this.x1 = this.c1.getContext('2d'); this.x2 = this.c2.getContext('2d'); const tick = () => { requestAnimationFrame(tick); this.tick(); }; tick(); },
+  reset() { this.fresh = false; this.thumb = null; this.thumbDrawn = false; },
+  show(v) { v = v && this.on; if (v === this.active) return; this.active = v; this.c1.classList.toggle('on', v); this.c2.classList.toggle('on', v); document.body.classList.toggle('lit', v); },
+  draw(src, a) { for (const [c, x] of [[this.c1, this.x1], [this.c2, this.x2]]) { x.globalAlpha = a; try { x.drawImage(src, 0, 0, c.width, c.height); } catch {} } },
+  tick() {
+    const now = performance.now(); if (now - this.last < 66) return; this.last = now;   // ~15 кадров/с — экономно
+    if (!this.on || document.fullscreenElement || $('#room').classList.contains('hidden')) return this.show(false);
+    if (P.src && !P.isEmbed() && video.readyState >= 2 && video.videoWidth) {
+      this.show(true);
+      if (!video.paused || !this.fresh) { this.draw(video, this.fresh ? 0.16 : 1); this.fresh = true; }   // плавное «перетекание» цветов
+    } else if (P.isYT() && this.thumb && this.thumb.complete && this.thumb.naturalWidth) {
+      this.show(true); if (!this.thumbDrawn) { this.draw(this.thumb, 1); this.thumbDrawn = true; }
+    } else this.show(false);
+  },
+};
+Glow.init();
+video.addEventListener('seeked', () => { if (video.paused) Glow.fresh = false; });
+video.addEventListener('loadeddata', () => { Glow.fresh = false; });
 
 /* ---------------- качество (у каждого своё) ---------------- */
 const qName = h => h ? (h >= 2000 ? '4K' : h >= 1400 ? '1440p' : h + 'p') : '';
@@ -1336,7 +1373,7 @@ function onFilePicked(file, mode) {
 /* ---------------- settings ---------------- */
 function openSettings() {
   $('#gateRange').value = M.gateDb; $('#gateMark').style.left = ((M.gateDb + 75) / 55 * 100) + '%';
-  $('#pttChk').checked = M.ptt; $('#duckChk').checked = M.duckOn; $('#voiceVol').value = M.voiceVol;
+  $('#glowChk').checked = Glow.on; $('#pttChk').checked = M.ptt; $('#duckChk').checked = M.duckOn; $('#voiceVol').value = M.voiceVol;
   fillDevices(); $('#setModal').classList.remove('hidden');
 }
 
@@ -1451,6 +1488,7 @@ $('#setBtn').onclick = openSettings; $('#setClose').onclick = () => $('#setModal
 $('#leaveBtn').onclick = leave;
 $('#gateRange').oninput = e => { M.gateDb = +e.target.value; ls.set('gateDb', M.gateDb); $('#gateMark').style.left = ((M.gateDb + 75) / 55 * 100) + '%'; };
 $('#pttChk').onchange = e => { M.ptt = e.target.checked; ls.set('ptt', M.ptt); toast(M.ptt ? 'Зажмите V, чтобы говорить' : 'Микрофон включается голосом'); };
+$('#glowChk').onchange = e => { Glow.on = e.target.checked; ls.set('glow', Glow.on); Glow.fresh = false; };
 $('#duckChk').onchange = e => { M.duckOn = e.target.checked; ls.set('duck', M.duckOn); };
 $('#voiceVol').oninput = e => { M.voiceVol = +e.target.value; ls.set('voiceVol', M.voiceVol); M.remotes.forEach(applyVoiceVol); };
 $('#micSel').onchange = async e => { ls.set('micId', e.target.value); await openMic(e.target.value); };
