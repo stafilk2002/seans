@@ -383,23 +383,24 @@ details li{margin:4px 0}
     <h3 id="srcTitle">Выбрать фильм</h3>
     <p class="hint" id="srcHint">Вставьте ссылку — фильм включится у всех в комнате.</p>
     <div class="stack">
-      <input class="field" id="srcInput" placeholder="https://…  (.mp4, .m3u8, YouTube)" autocomplete="off" spellcheck="false">
+      <input class="field" id="srcInput" placeholder="https://…  (.mp4, .m3u8, YouTube, VK Видео)" autocomplete="off" spellcheck="false">
       <input class="field" id="srcName" placeholder="Название (необязательно)" maxlength="80">
       <label class="btn btn-glass" style="height:46px;font-size:15px">или выбрать файл с компьютера<input type="file" accept="video/*,.mkv" id="srcFile" hidden></label>
     </div>
     <div class="src-types">
       <div><b>Прямые ссылки</b>.mp4 · .webm · .m3u8</div>
-      <div><b>YouTube</b>любые ролики</div>
+      <div><b>YouTube и VK</b>ссылка на страницу ролика</div>
       <div><b>Файл</b>у каждого свой, время общее</div>
     </div>
     <details id="rezkaHelp">
-      <summary>Как взять фильм с HDRezka и похожих сайтов</summary>
+      <summary>Как взять фильм с HDRezka, Kinogo и похожих сайтов</summary>
       <div class="body">
-        Сайты вроде HDRezka не дают управлять своим плеером извне, поэтому нужна прямая ссылка на сам видеопоток. Её легко достать:
+        <b>VK Видео</b> — просто вставьте ссылку на страницу ролика, закладка не нужна.<br><br>
+        Сайты вроде HDRezka и Kinogo не дают управлять своим плеером извне, поэтому нужна прямая ссылка на сам видеопоток. Её достаёт закладка:
         <ol>
           <li>Перетащите эту кнопку на панель закладок браузера:<br><a class="bm" id="bookmarklet" href="#">🎬 Ссылка на видео</a></li>
           <li>Откройте фильм на HDRezka, выберите озвучку и качество, нажмите ▶ (можно сразу на паузу).</li>
-          <li>Нажмите закладку «🎬 Ссылка на видео» — ссылка скопируется.</li>
+          <li>Нажмите закладку «🎬 Ссылка на видео» — ссылка скопируется. Если плеер встроен с другого сайта (как на Kinogo), закладка предложит открыть его отдельно — там снова ▶ и закладка.</li>
           <li>Вставьте её сюда.</li>
         </ol>
         Без закладки: F12 → вкладка «Network» → фильтр <code>mp4</code> или <code>m3u8</code> → скопируйте адрес запроса.<br><br>
@@ -625,7 +626,7 @@ async function ensureConnected(rejoin) {
     // никто не держит комнату — берём на себя
     if (!C.hub) {
       try { await becomeHub(); continue; }
-      catch (e) { console.log('hub claim failed', e.type); await sleep(1200 + Math.random() * 800); }
+      catch (e) { console.log('hub claim failed', e.type); await sleep(e && e.type === 'unavailable-id' ? 300 : 1200 + Math.random() * 800); }
     } else await sleep(800);
   }
   if (!C.leaving) { toast('Не удалось подключиться. Проверьте интернет и обновите страницу.', 8000); }
@@ -685,16 +686,40 @@ const P = {
   kind: null, src: null, hls: null, yt: null, ready: false, override: ls.get('override', null), fileUrl: null,
   vol: ls.get('vol', 1), muted: false, duck: 1, blocked: false,
   isYT() { return this.kind === 'youtube'; },
-  time() { if (this.isYT()) return this.yt && this.yt.getCurrentTime ? this.yt.getCurrentTime() : 0; return video.currentTime || 0; },
-  dur() { if (this.isYT()) return this.yt && this.yt.getDuration ? this.yt.getDuration() : 0; return Number.isFinite(video.duration) ? video.duration : 0; },
-  paused() { if (this.isYT()) { const st = this.yt && this.yt.getPlayerState ? this.yt.getPlayerState() : -1; return !(st === 1 || st === 3); } return video.paused; },
-  play() { if (this.isYT()) { this.yt && this.yt.playVideo(); return Promise.resolve(); } return video.play(); },
-  pause() { if (this.isYT()) this.yt && this.yt.pauseVideo(); else video.pause(); },
-  seek(t) { if (this.isYT()) this.yt && this.yt.seekTo(t, true); else { try { video.currentTime = t; } catch {} } },
-  rate(r) { if (!this.isYT() && Math.abs(video.playbackRate - r) > 0.004) video.playbackRate = r; },
+  isVK() { return this.kind === 'vk'; },
+  isEmbed() { return this.kind === 'youtube' || this.kind === 'vk'; },
+  vkNow() { return this.vkState === 'playing' ? this.vkTime + (performance.now() - this.vkAt) / 1000 : this.vkTime; },
+  time() {
+    if (this.isYT()) return this.yt && this.yt.getCurrentTime ? this.yt.getCurrentTime() : 0;
+    if (this.isVK()) return this.vk ? this.vkNow() : 0;
+    return video.currentTime || 0;
+  },
+  dur() {
+    if (this.isYT()) return this.yt && this.yt.getDuration ? this.yt.getDuration() : 0;
+    if (this.isVK()) return this.vkDur || 0;
+    return Number.isFinite(video.duration) ? video.duration : 0;
+  },
+  paused() {
+    if (this.isYT()) { const st = this.yt && this.yt.getPlayerState ? this.yt.getPlayerState() : -1; return !(st === 1 || st === 3); }
+    if (this.isVK()) return this.vkState !== 'playing' && !this.vkWant;
+    return video.paused;
+  },
+  play() {
+    if (this.isYT()) { this.yt && this.yt.playVideo(); return Promise.resolve(); }
+    if (this.isVK()) { if (this.vk) { this.vkWant = true; setTimeout(() => this.vkWant = false, 3000); this.vk.play(); } return Promise.resolve(); }
+    return video.play();
+  },
+  pause() { if (this.isYT()) this.yt && this.yt.pauseVideo(); else if (this.isVK()) { this.vkWant = false; this.vk && this.vk.pause(); } else video.pause(); },
+  seek(t) {
+    if (this.isYT()) this.yt && this.yt.seekTo(t, true);
+    else if (this.isVK()) { if (this.vk) { this.vk.seek(t); this.vkTime = t; this.vkAt = performance.now(); } }
+    else { try { video.currentTime = t; } catch {} }
+  },
+  rate(r) { if (!this.isEmbed() && Math.abs(video.playbackRate - r) > 0.004) video.playbackRate = r; },
   applyVol() {
     const v = this.muted ? 0 : this.vol * this.duck;
     if (this.isYT()) { this.yt && this.yt.setVolume && this.yt.setVolume(Math.round(v * 100)); }
+    else if (this.isVK()) { try { this.vk && this.vk.setVolume(Math.min(1, v)); } catch {} }
     else if (Loop.active) { Loop.setGain(v); }
     else video.volume = Math.min(1, v);
   },
@@ -703,11 +728,19 @@ const P = {
 function detectKind(url) {
   if (/^file:/.test(url)) return 'file';
   if (/(youtube\.com\/(watch|shorts|embed|live)|youtu\.be\/)/i.test(url)) return 'youtube';
+  if (/(^|\.|\/\/)(vk\.com|vk\.ru|vkvideo\.ru|m\.vk\.com)\//i.test(url) && vkParams(url)) return 'vk';
   if (/\.m3u8(\?|#|$)|\/manifest|\bhls\b/i.test(url)) return 'hls';
   return 'video';
 }
+function vkParams(url) {
+  let m = url.match(/video_ext\.php\?([^\s"']+)/i);
+  if (m) { const q = new URLSearchParams(m[1].replace(/&amp;/g, '&')); if (q.get('oid') && q.get('id')) return { oid: q.get('oid'), id: q.get('id'), hash: q.get('hash') || '' }; }
+  m = url.match(/(?:video|clip)(-?\d+)_(\d+)/i);
+  if (m) { let hash = ''; try { hash = new URL(url).searchParams.get('hash') || ''; } catch {} return { oid: m[1], id: m[2], hash }; }
+  return null;
+}
 function ytId(url) { const m = url.match(/(?:v=|youtu\.be\/|shorts\/|embed\/|live\/)([\w-]{11})/); return m ? m[1] : null; }
-function isPageUrl(url) { return /(rezka|hdrezka|kinopoisk|lordfilm|kinogo|baskino|ivi\.ru|okko|kion|start\.ru|wink\.ru|filmix)/i.test(url) && !/\.(mp4|m3u8|webm)/i.test(url); }
+function isPageUrl(url) { if (/(vk\.com|vk\.ru|vkvideo\.ru)/i.test(url)) return false; return /(rezka|hdrezka|kinopoisk|lordfilm|kinogo|baskino|ivi\.ru|okko|kion|start\.ru|wink\.ru|filmix)/i.test(url) && !/\.(mp4|m3u8|webm)/i.test(url); }
 
 function currentSource(s) {
   if (P.override && P.override.for === s.url) return P.override;
@@ -717,6 +750,9 @@ function currentSource(s) {
 function resetPlayer() {
   if (P.hls) { P.hls.destroy(); P.hls = null; }
   if (P.yt) { try { P.yt.destroy(); } catch {} P.yt = null; }
+  if (P.vk) { try { P.vk.destroy(); } catch {} P.vk = null; }
+  const vf = $('#vkFrame'); if (vf) vf.remove();
+  P.vkState = 'unstarted'; P.vkTime = 0; P.vkDur = 0; P.vkWant = false;
   $('#yt') || $('#ytWrap').prepend(Object.assign(document.createElement('div'), { id: 'yt' }));
   video.pause(); video.removeAttribute('src'); video.load();
   Loop.stop();
@@ -731,8 +767,10 @@ async function loadSource(s) {
   resetPlayer(); P.src = key; P.kind = src.kind;
   $('#emptyState').classList.add('hidden');
   $('#movieTitle').textContent = s.title || 'Без названия';
-  video.classList.toggle('hidden', src.kind === 'youtube');
-  $('#ytWrap').classList.toggle('hidden', src.kind !== 'youtube');
+  const emb = src.kind === 'youtube' || src.kind === 'vk';
+  video.classList.toggle('hidden', emb);
+  $('#ytWrap').classList.toggle('hidden', !emb);
+  if (src.kind === 'vk') { await loadVK(vkParams(src.url)); return; }
 
   if (src.kind === 'youtube') { await loadYT(ytId(src.url)); return; }
   if (src.kind === 'file') {
@@ -757,6 +795,40 @@ function waitMeta() {
     const bad = () => { cleanup(); res(); };
     const cleanup = () => { video.removeEventListener('loadedmetadata', ok); video.removeEventListener('error', bad); };
     video.addEventListener('loadedmetadata', ok); video.addEventListener('error', bad);
+  });
+}
+
+let vkApi = null;
+function vkReady() {
+  if (vkApi) return vkApi;
+  const load = u => new Promise((res, rej) => { const s = document.createElement('script'); s.src = u; s.onload = res; s.onerror = rej; document.head.append(s); });
+  vkApi = load('https://vk.com/js/api/videoplayer.js').catch(() => load('https://vk.ru/js/api/videoplayer.js'));
+  return vkApi;
+}
+async function loadVK(v) {
+  try { await vkReady(); } catch { showLoadErr('Не удалось загрузить плеер VK. Проверьте, открывается ли у вас vk.com.'); return; }
+  const f = document.createElement('iframe'); f.id = 'vkFrame';
+  f.src = `https://vk.com/video_ext.php?oid=${encodeURIComponent(v.oid)}&id=${encodeURIComponent(v.id)}${v.hash ? '&hash=' + encodeURIComponent(v.hash) : ''}&hd=4&js_api=1`;
+  f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture'; f.setAttribute('frameborder', '0');
+  f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000';
+  $('#ytWrap').prepend(f);
+  await new Promise(res => {
+    let done = false; const fin = () => { if (!done) { done = true; res(); } };
+    setTimeout(() => { if (!P.ready) showLoadErr('VK-видео не загрузилось. Возможно, автор запретил встраивание, видео закрыто или нужен вход в VK. Попробуйте другую ссылку.'); fin(); }, 20000);
+    f.onload = () => {
+      try {
+        const pl = VK.VideoPlayer(f); P.vk = pl;
+        const upd = st => { if (!st) return; if (typeof st.time === 'number') { P.vkTime = st.time; P.vkAt = performance.now(); } if (st.duration) P.vkDur = st.duration; if (st.state) P.vkState = st.state; if (st.quality && st.quality !== P.vkQ) { P.vkQ = st.quality; updateQLabel(); } };
+        pl.on('inited', st => { upd(st); P.ready = true; P.applyVol(); fin(); });
+        pl.on('timeupdate', upd);
+        ['started', 'resumed'].forEach(e => pl.on(e, st => { upd(st); P.vkState = 'playing'; P.buffering = false; }));
+        pl.on('paused', st => { upd(st); P.vkState = 'paused'; });
+        pl.on('ended', st => { upd(st); P.vkState = 'ended'; });
+        pl.on('adStarted', () => { P.buffering = true; });
+        pl.on('adCompleted', () => { P.buffering = false; });
+        pl.on('error', () => { showLoadErr('VK не может показать это видео здесь — возможно, встраивание запрещено. Попробуйте другую ссылку.'); fin(); });
+      } catch (e) { console.warn('vk api', e); }
+    };
   });
 }
 
@@ -808,7 +880,7 @@ setInterval(() => {
   if (s.playing) {
     if (P.paused() && !video.ended) { tryPlay(); return; }
     if (Math.abs(diff) > 2) { P.seek(exp); P.rate(1); }
-    else if (!P.isYT() && Math.abs(diff) > 0.15) P.rate(1 + Math.max(-0.08, Math.min(0.08, diff * 0.4)));
+    else if (!P.isEmbed() && Math.abs(diff) > 0.15) P.rate(1 + Math.max(-0.08, Math.min(0.08, diff * 0.4)));
     else P.rate(1);
   } else {
     if (!P.paused()) P.pause();
@@ -829,7 +901,7 @@ function applyQualityPref() {
 function ownActive() { return !!(C.state && P.override && P.override.for === C.state.url); }
 function updateQLabel() {
   let t = 'Авто';
-  if (P.isYT()) t = 'Авто';
+  if (P.isEmbed()) t = P.isVK() && P.vkQ ? 'Авто · ' + qName(P.vkQ) : 'Авто';
   else if (P.hls && P.hls.levels && P.hls.levels.length) {
     const cur = P.hls.currentLevel >= 0 ? P.hls.levels[P.hls.currentLevel] : null;
     const auto = P.hls.autoLevelEnabled;
@@ -849,7 +921,7 @@ function openQMenu() {
     const auto = P.hls.autoLevelEnabled;
     h += `<button data-q="auto" class="${auto ? 'on' : ''}">Авто <small>по скорости интернета</small></button>`;
     lv.slice().sort((a, b) => b.h - a.h).forEach(l => h += `<button data-q="${l.i}" class="${!auto && P.hls.currentLevel === l.i ? 'on' : ''}">${qName(l.h) || 'Вариант ' + (l.i + 1)} <small>${(l.br / 1e6).toFixed(1)} Мбит/с</small></button>`);
-  } else if (P.isYT()) h += '<div class="qh" style="color:var(--dim)">YouTube подбирает качество сам по скорости интернета.</div>';
+  } else if (P.isEmbed()) h += `<div class="qh" style="color:var(--dim)">${P.isVK() ? 'VK' : 'YouTube'} подбирает качество сам по скорости интернета.</div>`;
   else if (C.state && C.state.url) h += `<div class="qh" style="color:var(--dim)">В этой ссылке одно качество${video.videoHeight ? ': <b style="color:var(--fg)">' + qName(video.videoHeight) + '</b>' : ''}. Нужно другое — вставьте себе ссылку на тот же фильм в нужном качестве.</div>`;
   if (C.state && C.state.url) {
     h += '<hr><button data-q="own">Своя ссылка или файл… <small>другое качество</small></button>';
@@ -936,7 +1008,7 @@ function togglePlay() { if (!C.state || !C.state.url) return openSrc(); act(C.st
 const Loop = {
   active: false, gain: null, pcs: [], trying: false,
   async maybeStart() {
-    if (this.active || this.trying || P.isYT() || !M.raw || P.kind !== 'file') return;
+    if (this.active || this.trying || P.isEmbed() || !M.raw || P.kind !== 'file') return;
     const cap = video.captureStream ? video.captureStream() : (video.mozCaptureStream ? video.mozCaptureStream() : null);
     if (!cap || !cap.getAudioTracks().length) return;
     this.trying = true;
@@ -1053,7 +1125,14 @@ function syncMesh() {
     if (!M.calls.has(m.id) && me.id < m.id) callPeer(m.id);   // звонит тот, у кого id «меньше» — без дублей
     const r = M.remotes.get(m.id); if (r) updateTile(r, m);
   }
-  for (const [id, call] of M.calls) if (!ids.has(id) && !C.reconnecting) { try { call.close(); } catch {} dropRemote(id); }
+  // звонок закрываем, только если человека нет в комнате дольше 15 секунд (при смене хозяина список на миг пустеет)
+  const now = Date.now(); M.missing = M.missing || {};
+  for (const [id, call] of M.calls) {
+    if (ids.has(id)) { delete M.missing[id]; continue; }
+    if (C.reconnecting) continue;
+    if (!M.missing[id]) { M.missing[id] = now; setTimeout(syncMesh, 15500); continue; }
+    if (now - M.missing[id] > 15000) { delete M.missing[id]; try { call.close(); } catch {} dropRemote(id); }
+  }
   renderSelfTile();
 }
 
@@ -1207,7 +1286,7 @@ setInterval(() => {
   const d = P.dur(), t = seekDrag !== null ? seekDrag : (P.ready ? P.time() : expectedPos(C.state));
   $('#timeLbl').textContent = `${fmt(t)} / ${fmt(d)}`;
   $('#seekFill').style.width = d ? (t / d * 100) + '%' : '0';
-  if (!P.isYT() && video.buffered.length && d) $('#seekBuf').style.width = (video.buffered.end(video.buffered.length - 1) / d * 100) + '%';
+  if (!P.isEmbed() && video.buffered.length && d) $('#seekBuf').style.width = (video.buffered.end(video.buffered.length - 1) / d * 100) + '%';
   else if (P.isYT() && P.yt && P.yt.getVideoLoadedFraction) $('#seekBuf').style.width = (P.yt.getVideoLoadedFraction() * 100) + '%';
 }, 250);
 
@@ -1223,7 +1302,7 @@ function openSrc(mode = 'room') {
 }
 function closeSrc() { $('#srcModal').classList.add('hidden'); }
 function guessTitle(url) {
-  try { const u = new URL(url); if (detectKind(url) === 'youtube') return 'YouTube'; const last = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || u.hostname); return last.replace(/\.(mp4|m3u8|webm|mkv|mov)$/i, '').replace(/[_.-]+/g, ' ').slice(0, 60) || u.hostname; } catch { return 'Видео'; }
+  try { const u = new URL(url); if (detectKind(url) === 'youtube') return 'YouTube'; if (detectKind(url) === 'vk') return 'VK Видео'; const last = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || u.hostname); return last.replace(/\.(mp4|m3u8|webm|mkv|mov)$/i, '').replace(/[_.-]+/g, ' ').slice(0, 60) || u.hostname; } catch { return 'Видео'; }
 }
 function submitSrc() {
   let url = $('#srcInput').value.trim();
@@ -1249,7 +1328,7 @@ function onFilePicked(file, mode) {
 
 /* bookmarklet для HDRezka и других сайтов */
 (function () {
-  const code = `(()=>{const L=[];document.querySelectorAll('video,video source').forEach(v=>{const s=v.currentSrc||v.src;if(s&&!s.startsWith('blob:'))L.push(s)});try{performance.getEntriesByType('resource').forEach(e=>{if(/\\.(m3u8|mp4)(\\?|$|:)/i.test(e.name))L.push(e.name)})}catch(e){}let u=L.find(x=>/\\.mp4/i.test(x))||L.find(x=>/m3u8/i.test(x))||L[0];if(!u){alert('Видео не найдено. Сначала нажмите ▶ в плеере, потом эту закладку.');return}u=u.split(' or ')[0];const done=()=>alert('Ссылка скопирована! Вставьте её в «Сеанс».');navigator.clipboard?navigator.clipboard.writeText(u).then(done,()=>prompt('Скопируйте ссылку:',u)):prompt('Скопируйте ссылку:',u)})()`;
+  const code = `(()=>{const H=location.hostname;if(/(^|\\.)(vk\\.com|vk\\.ru|vkvideo\\.ru)$/.test(H)){const u=location.href;const ok=()=>alert('Это VK Видео — ссылка на страницу скопирована. Вставьте её в «Сеанс», он понимает VK напрямую.');navigator.clipboard?navigator.clipboard.writeText(u).then(ok,()=>prompt('Скопируйте ссылку:',u)):prompt('Скопируйте ссылку:',u);return}const L=[];let blob=0;document.querySelectorAll('video,video source').forEach(v=>{const s=v.currentSrc||v.src;if(s&&s.startsWith('blob:'))blob++;else if(s)L.push(s)});try{performance.getEntriesByType('resource').forEach(e=>{if(/\\.(m3u8|mp4)(\\?|$|:|\\/)/i.test(e.name))L.push(e.name)})}catch(e){}let u=L.find(x=>/\\.mp4/i.test(x))||L.find(x=>/m3u8/i.test(x))||L[0];if(u){u=u.split(' or ')[0];const done=()=>alert('Ссылка скопирована! Вставьте её в «Сеанс».');navigator.clipboard?navigator.clipboard.writeText(u).then(done,()=>prompt('Скопируйте ссылку:',u)):prompt('Скопируйте ссылку:',u);return}const F=[...document.querySelectorAll('iframe')].filter(f=>/^https?:/.test(f.src)&&f.offsetWidth*f.offsetHeight>60000).sort((a,b)=>b.offsetWidth*b.offsetHeight-a.offsetWidth*a.offsetHeight);if(F.length){const f=F[0];let h='';try{h=new URL(f.src).hostname}catch(e){}if(confirm('Плеер встроен с другого сайта ('+h+'), поэтому отсюда ссылку не достать.\\n\\nОткрыть плеер отдельно? Там нажмите ▶ и эту закладку ещё раз.'))location.href=f.src;return}alert(blob?'Сайт отдаёт видео защищённым потоком — прямую ссылку достать нельзя. Попробуйте другую озвучку/плеер на сайте или другой сайт.':'Видео не найдено. Сначала нажмите ▶ в плеере, подождите пару секунд, потом эту закладку.')})()`;
   $('#bookmarklet').href = 'javascript:' + encodeURIComponent(code);
   $('#bookmarklet').onclick = e => { e.preventDefault(); toast('Перетащите кнопку на панель закладок'); };
 })();
@@ -1360,7 +1439,7 @@ seekEl.onpointerup = e => { if (seekDrag === null) return; const t = posFromEvt(
 
 video.addEventListener('waiting', () => { P.buffering = true; $('#spinner').classList.remove('hidden'); });
 ['playing', 'canplay', 'pause', 'seeked'].forEach(ev => video.addEventListener(ev, () => { P.buffering = false; $('#spinner').classList.add('hidden'); }));
-video.addEventListener('error', () => { if (P.src && !P.isYT() && video.getAttribute('src') !== null) showLoadErr(); });
+video.addEventListener('error', () => { if (P.src && !P.isEmbed() && video.getAttribute('src') !== null) showLoadErr(); });
 
 // скрываем панель управления, когда мышь не двигается
 let idleT; const stage = $('#stage');
