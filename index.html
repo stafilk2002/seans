@@ -189,6 +189,21 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .msg .txt{color:rgba(245,245,247,.9);white-space:pre-wrap}
 .msg .txt a{color:#64d2ff}
 .msg.cont{padding-top:0}
+.mcard{padding:8px 0}
+.mc-who{font-size:12.5px;color:var(--dim);margin-bottom:6px;display:flex;gap:6px;align-items:baseline}
+.mc-who time{color:var(--faint);font-size:11px;margin-left:auto}
+.mc-box{display:flex;gap:10px;padding:8px;border-radius:14px;background:var(--glass);border:1px solid var(--line)}
+.mc-thumb{position:relative;width:92px;flex-shrink:0;aspect-ratio:16/10;border-radius:9px;background-size:cover;background-position:center;display:grid;place-items:center;overflow:hidden}
+.mc-thumb svg{width:22px;height:22px;fill:rgba(255,255,255,.85)}
+.mc-thumb span{position:absolute;left:5px;bottom:5px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;background:rgba(0,0,0,.6)}
+.mc-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.mc-title{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-url{font-size:12px;color:#64d2ff;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.mc-url:hover{text-decoration:underline}
+div.mc-url{color:var(--faint)}
+.mc-actions{display:flex;gap:6px;margin-top:auto;padding-top:4px}
+.mc-actions button{white-space:nowrap;font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,.1);transition:background .15s}
+.mc-actions button:hover{background:rgba(255,255,255,.2)}
 .sys{text-align:center;color:var(--faint);font-size:12px;padding:8px 0}
 .react-bar{display:flex;justify-content:space-between;padding:0 14px 8px}
 .react-bar button{font-size:22px;width:44px;height:38px;border-radius:10px;transition:background .15s,transform .15s}
@@ -427,7 +442,7 @@ details li{margin:4px 0}
 <div class="modal-bg hidden" id="setModal">
   <div class="modal">
     <h3>Звук и связь</h3>
-    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 6</span></p>
+    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 8</span></p>
     <div class="set-row"><label>Микрофон</label><select id="micSel"></select></div>
     <div class="set-row"><label>Камера</label><select id="camSel"></select></div>
     <div class="set-row"><div class="gate-wrap"><label>Порог микрофона<small>Голос проходит, только когда громче отметки. Поднимите её, если друзья слышат фильм или шум.</small></label>
@@ -587,7 +602,7 @@ class Hub {
     else return;
     s.at = now; s.v++;
     this.broadcast({ t: 'state', state: s, by: mem.name, from: mem.id, action: a.type });
-    if (a.type === 'load') this.sys(`${mem.name} включил(а) «${s.title || 'новое видео'}»`);
+    if (a.type === 'load') { const m = { t: 'media', from: mem.id, name: mem.name, url: s.url, kind: s.kind, title: s.title, ts: Date.now() }; this.chat.push(m); this.trim(); this.broadcast(m); }
   }
 }
 
@@ -686,7 +701,7 @@ function onMessage(m, conn) {
     case 'state':
       if (m.from !== me.id) { const verb = { play: '▶ включил(а)', pause: '❚❚ поставил(а) на паузу', seek: '⇄ перемотал(а) на ' + fmt(m.state.pos) }[m.action]; if (verb) toast(`${m.by} ${verb}`); }
       applyState(m.state, m.action === 'seek'); break;
-    case 'chat': case 'sys': C.chat.push(m); addMsg(m); break;
+    case 'chat': case 'sys': case 'media': C.chat.push(m); addMsg(m); break;
     case 'react': showReaction(m.e, m.name); break;
     case 'pos': if (m.id !== me.id) C.pos[m.id] = { p: m.p, s: m.s, at: m.at, got: Date.now() }; break;
   }
@@ -797,7 +812,7 @@ async function loadSource(s) {
       P.hls = new Hls({ maxBufferLength: 60 }); P.hls.loadSource(src.url); P.hls.attachMedia(video);
       P.hls.on(Hls.Events.MANIFEST_PARSED, () => applyQualityPref());
       P.hls.on(Hls.Events.LEVEL_SWITCHED, () => updateQLabel());
-      P.hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) { console.warn('hls', d); if (d.type === 'networkError' && !P.hlsRetried) { P.hlsRetried = true; P.hls.destroy(); P.hls = null; video.src = src.url; } else showLoadErr(); } });
+      P.hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) { console.warn('hls', d); if (d.type === 'networkError' && !P.hlsRetried) { P.hlsRetried = true; P.hls.destroy(); P.hls = null; video.src = src.url; } else showLoadErr(`Причина: поток не воспроизводится (${d.details || d.type}). Возможно, ссылка устарела — достаньте её заново или вставьте свою.`); } });
     } else video.src = src.url;
   } else video.src = src.url;
   await waitMeta();
@@ -826,7 +841,7 @@ async function loadVK(v) {
   f.src = `https://vk.com/video_ext.php?oid=${encodeURIComponent(v.oid)}&id=${encodeURIComponent(v.id)}${v.hash ? '&hash=' + encodeURIComponent(v.hash) : ''}&hd=4&js_api=1`;
   f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture'; f.setAttribute('frameborder', '0');
   f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000';
-  $('#ytWrap').prepend(f);
+  $('#ytShield').before(f);   // над чёрной подложкой YouTube, под «щитом» кликов
   await new Promise(res => {
     let done = false; const fin = () => { if (!done) { done = true; res(); } };
     setTimeout(() => { if (!P.ready) showLoadErr('VK-видео не загрузилось. Возможно, автор запретил встраивание, видео закрыто или нужен вход в VK. Попробуйте другую ссылку.'); fin(); }, 20000);
@@ -1290,11 +1305,45 @@ function renderMembers() {
     <svg viewBox="0 0 24 24" class="${m.cam ? '' : 'off'}">${m.cam ? '<path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/>' : '<path d="M2 2l20 20M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5 0h4a2 2 0 0 1 2 2v3l1 1L23 7v10"/>'}</svg></div>`).join('');
 }
 
+/* карточка «включили видео» в чате */
+function mediaCard(m) {
+  const d = document.createElement('div'); d.className = 'mcard';
+  const isFile = m.kind === 'file';
+  const badge = { youtube: 'YouTube', vk: 'VK', hls: 'Поток', video: 'Видео', file: 'Файл' }[m.kind] || 'Видео';
+  let host = '', shown = '';
+  if (!isFile) { try { const u = new URL(m.url); host = u.hostname.replace(/^www\./, ''); const path = decodeURIComponent(u.pathname + u.search); shown = host + (path.length > 1 ? (path.length > 38 ? path.slice(0, 18) + '…' + path.slice(-16) : path) : ''); } catch { shown = m.url.slice(0, 60); } }
+  const yid = m.kind === 'youtube' ? ytId(m.url) : null;
+  const hue = [...(host || m.title || 'x')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 360;
+  const thumb = yid ? `background-image:url(https://i.ytimg.com/vi/${yid}/mqdefault.jpg)` : `background:linear-gradient(135deg,hsl(${hue} 55% 32%),hsl(${(hue + 50) % 360} 60% 18%))`;
+  const time = new Date(m.ts - C.offset).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+  const fileName = isFile ? m.url.replace(/^file:/, '').replace(/:\d+$/, '') : '';
+  d.innerHTML = `<div class="mc-who"><b style="color:${colorFor(m.name)}">${esc(m.name)}</b> включил(а) видео<time>${time}</time></div>
+    <div class="mc-box">
+      <div class="mc-thumb" style="${thumb}">${yid ? '' : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'}<span>${badge}</span></div>
+      <div class="mc-body">
+        <div class="mc-title">${esc(m.title || 'Без названия')}</div>
+        ${isFile ? `<div class="mc-url">${esc(fileName)} · у каждого свой файл</div>` : `<a class="mc-url" href="${esc(m.url)}" target="_blank" rel="noopener" title="${esc(m.url)}">${esc(shown)}</a>`}
+        <div class="mc-actions">
+          ${isFile ? '' : '<button data-act="copy">Копировать</button>'}
+          <button data-act="replay" title="Включить это видео снова для всех">▶ Включить</button>
+        </div>
+      </div>
+    </div>`;
+  if (!isFile) d.querySelector('[data-act=copy]').onclick = () => copy(m.url, 'Ссылка скопирована');
+  d.querySelector('[data-act=replay]').onclick = () => {
+    if (C.state && C.state.url === m.url) return toast('Это видео уже включено');
+    if (isFile) { act('load', { url: m.url, kind: 'file', title: m.title }); return; }
+    act('load', { url: m.url, kind: m.kind, title: m.title });
+  };
+  return d;
+}
+
 const linkify = s => esc(s).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
 let lastFrom = null, lastTs = 0;
 function msgEl(m) {
   const d = document.createElement('div');
   if (m.t === 'sys') { d.className = 'sys'; d.textContent = m.text; lastFrom = null; return d; }
+  if (m.t === 'media') { lastFrom = null; return mediaCard(m); }
   const cont = lastFrom === m.from && m.ts - lastTs < 120000;
   d.className = 'msg' + (cont ? ' cont' : '');
   const time = new Date(m.ts - C.offset).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
@@ -1477,7 +1526,11 @@ seekEl.onpointerup = e => { if (seekDrag === null) return; const t = posFromEvt(
 
 video.addEventListener('waiting', () => { P.buffering = true; $('#spinner').classList.remove('hidden'); });
 ['playing', 'canplay', 'pause', 'seeked'].forEach(ev => video.addEventListener(ev, () => { P.buffering = false; $('#spinner').classList.add('hidden'); }));
-video.addEventListener('error', () => { if (P.src && !P.isEmbed() && video.getAttribute('src') !== null) showLoadErr(); });
+video.addEventListener('error', () => {
+  if (!P.src || P.isEmbed() || video.getAttribute('src') === null) return;
+  const why = { 1: 'загрузка прервана', 2: 'ошибка сети', 3: 'не удалось декодировать видео', 4: 'сервер не отдал видео или формат не поддерживается' }[video.error && video.error.code] || 'неизвестная ошибка';
+  showLoadErr(`Причина: ${why}. Ссылка может быть временной или привязанной к другому устройству — вставьте свою ссылку на тот же фильм или выберите файл, синхронизация сохранится.`);
+});
 
 // скрываем панель управления, когда мышь не двигается
 let idleT; const stage = $('#stage');
