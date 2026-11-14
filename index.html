@@ -273,7 +273,8 @@ details li{margin:4px 0}
   html,body{overflow:auto}
   #room{display:flex;flex-direction:column;height:auto;min-height:100%}
   .main{padding:12px;overflow:visible}
-  .stage{flex:none;aspect-ratio:16/9;border-radius:16px}
+  .stage-wrap{flex:none;display:block}
+  .stage{flex:none;width:100%;aspect-ratio:16/9;border-radius:16px}
   .side{border-left:0;border-top:1px solid var(--line);min-height:70vh}
   .topbar .logo span,.pill .lbl{display:none}
   .tile{width:130px}
@@ -426,7 +427,7 @@ details li{margin:4px 0}
 <div class="modal-bg hidden" id="setModal">
   <div class="modal">
     <h3>Звук и связь</h3>
-    <p class="hint">Настройки сохраняются только в этом браузере.</p>
+    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 6</span></p>
     <div class="set-row"><label>Микрофон</label><select id="micSel"></select></div>
     <div class="set-row"><label>Камера</label><select id="camSel"></select></div>
     <div class="set-row"><div class="gate-wrap"><label>Порог микрофона<small>Голос проходит, только когда громче отметки. Поднимите её, если друзья слышат фильм или шум.</small></label>
