@@ -144,6 +144,27 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .tile .vol-ctl{position:absolute;top:6px;right:6px;left:6px;opacity:0;transition:opacity .2s}
 .tile:hover .vol-ctl{opacity:1}
 .tile .vol-ctl input{width:100%}
+.qwrap{position:relative}
+.qbtn{height:32px;padding:0 12px;border-radius:16px;font-size:13px;font-weight:600;background:rgba(255,255,255,.12);display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;transition:background .2s}
+.qbtn:hover{background:rgba(255,255,255,.22)}
+.qbtn svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.qmenu{position:absolute;right:0;bottom:44px;width:300px;background:rgba(36,36,40,.94);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid var(--line);border-radius:16px;padding:6px;box-shadow:0 20px 50px rgba(0,0,0,.5);animation:pop .18s}
+.qmenu .qh{padding:8px 12px 6px;font-size:12px;color:var(--faint);line-height:1.4}
+.qmenu button{width:100%;text-align:left;padding:9px 12px;border-radius:10px;font-size:14px;display:flex;justify-content:space-between;gap:12px}
+.qmenu button:hover{background:rgba(255,255,255,.1)}
+.qmenu button small{color:var(--faint);font-size:12px;white-space:nowrap}
+.qmenu button.on:after{content:"✓";font-weight:700}
+.qmenu hr{border:0;height:1px;background:var(--line);margin:5px 6px}
+.tile .pos{position:absolute;top:6px;left:6px;max-width:calc(100% - 12px);display:flex;align-items:center;gap:5px;padding:3px 8px 3px 7px;border-radius:9px;background:rgba(0,0,0,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;transition:opacity .2s}
+.tile .pos:empty{display:none}
+.tile:hover .pos{opacity:0}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--faint)}
+.dot.ok{background:var(--green)}.dot.warn{background:#ff9f0a}.dot.bad{background:var(--red)}
+.pos .lbl{color:var(--dim);font-weight:500;overflow:hidden;text-overflow:ellipsis}
+.member .mpos{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:5px;margin-top:2px}
+.member .nm-wrap{flex:1;min-width:0}
+.sync-pill{font-size:13px;color:var(--dim)}
+.sync-pill .dot{display:inline-block;margin-right:2px}
 .tile .state{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.6);font-size:11px;color:var(--dim)}
 
 /* sidebar */
@@ -281,6 +302,7 @@ details li{margin:4px 0}
     <div class="topbar">
       <div class="logo"><b><svg viewBox="0 0 10 12"><path d="M0 0l10 6-10 6z"/></svg></b><span>СЕАНС</span></div>
       <div class="title" id="movieTitle">Ничего не выбрано</div>
+      <span class="pill sync-pill hidden" id="syncPill" title="Синхронизация участников"><span class="dot ok"></span><span id="syncTxt">Все вместе</span></span>
       <button class="pill" id="changeBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Фильм</span></button>
       <button class="pill" id="codePill" title="Скопировать ссылку-приглашение"><span class="conn-dot" id="connDot"></span><span class="code" id="roomCodeLbl"></span><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
     </div>
@@ -319,6 +341,7 @@ details li{margin:4px 0}
           <button class="cbtn" id="fwd10" title="+10 сек (→)"><svg viewBox="0 0 24 24"><path d="M12 5V1l5 5-5 5V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"/><text x="12" y="16.5" font-size="7" text-anchor="middle" font-family="sans-serif" font-weight="700">10</text></svg></button>
           <span class="time" id="timeLbl">0:00 / 0:00</span>
           <span class="spacer"></span>
+          <div class="qwrap"><button class="qbtn" id="qBtn" title="Качество — только у вас"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span id="qLbl">Авто</span></button><div class="qmenu hidden" id="qMenu"></div></div>
           <div class="vol"><button class="cbtn" id="muteBtn" title="Звук фильма"></button><input type="range" id="volRange" min="0" max="1" step="0.01" value="1"></div>
           <button class="cbtn" id="fsBtn" title="Во весь экран (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5v2H6v3zm11-5h5v5h-2V6h-3zM4 15h2v3h3v2H4zm14 0h2v5h-5v-2h3z"/></svg></button>
         </div>
@@ -469,7 +492,7 @@ const ICON = {
 const me = { id: null, name: ls.get('name', ''), joined: Date.now() };
 const C = {                    // клиент комнаты
   code: null, roomId: null, peer: null, conn: null, hub: null,
-  offset: 0, bestRtt: Infinity, members: [], state: null, chat: [],
+  offset: 0, bestRtt: Infinity, members: [], state: null, chat: [], pos: {},
   connected: false, leaving: false, reconnecting: false, pingTimer: null,
 };
 
@@ -534,6 +557,7 @@ class Hub {
         const msg = { t: 'chat', from: c.peer, name: mem.name, text, ts: Date.now() };
         this.chat.push(msg); this.trim(); this.broadcast(msg); break;
       }
+      case 'pos': if (mem) this.broadcast({ t: 'pos', id: c.peer, p: m.p, s: m.s, at: Date.now() }); break;
       case 'react': if (mem) this.broadcast({ t: 'react', e: String(m.e).slice(0, 8), name: mem.name, from: c.peer }); break;
       case 'action': if (mem) this.apply(m.a, mem); break;
     }
@@ -649,6 +673,7 @@ function onMessage(m, conn) {
       applyState(m.state, m.action === 'seek'); break;
     case 'chat': case 'sys': C.chat.push(m); addMsg(m); break;
     case 'react': showReaction(m.e, m.name); break;
+    case 'pos': if (m.id !== me.id) C.pos[m.id] = { p: m.p, s: m.s, at: m.at, got: Date.now() }; break;
   }
 }
 
@@ -695,7 +720,7 @@ function resetPlayer() {
   $('#yt') || $('#ytWrap').prepend(Object.assign(document.createElement('div'), { id: 'yt' }));
   video.pause(); video.removeAttribute('src'); video.load();
   Loop.stop();
-  P.ready = false; P.blocked = false;
+  P.ready = false; P.blocked = false; P.buffering = false; setTimeout(updateQLabel, 0);
   ['#loadErr', '#needFile', '#tapToPlay'].forEach(s => $(s).classList.add('hidden'));
 }
 
@@ -717,6 +742,8 @@ async function loadSource(s) {
   } else if (src.kind === 'hls') {
     if (window.Hls && Hls.isSupported()) {
       P.hls = new Hls({ maxBufferLength: 60 }); P.hls.loadSource(src.url); P.hls.attachMedia(video);
+      P.hls.on(Hls.Events.MANIFEST_PARSED, () => applyQualityPref());
+      P.hls.on(Hls.Events.LEVEL_SWITCHED, () => updateQLabel());
       P.hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) { console.warn('hls', d); if (d.type === 'networkError' && !P.hlsRetried) { P.hlsRetried = true; P.hls.destroy(); P.hls = null; video.src = src.url; } else showLoadErr(); } });
     } else video.src = src.url;
   } else video.src = src.url;
@@ -745,7 +772,7 @@ async function loadYT(id) {
     P.yt = new YT.Player('yt', {
       videoId: id, width: '100%', height: '100%',
       playerVars: { controls: 0, disablekb: 1, modestbranding: 1, rel: 0, playsinline: 1, iv_load_policy: 3, fs: 0 },
-      events: { onReady: () => { P.ready = true; P.applyVol(); res(); }, onStateChange: e => { $('#spinner').classList.toggle('hidden', e.data !== 3); }, onError: () => { showLoadErr('YouTube не даёт встроить это видео. Попробуйте другое.'); res(); } },
+      events: { onReady: () => { P.ready = true; P.applyVol(); res(); }, onStateChange: e => { P.buffering = e.data === 3; $('#spinner').classList.toggle('hidden', e.data !== 3); }, onError: () => { showLoadErr('YouTube не даёт встроить это видео. Попробуйте другое.'); res(); } },
     });
   });
 }
@@ -788,6 +815,105 @@ setInterval(() => {
     if (Math.abs(diff) > 0.5) P.seek(exp);
   }
 }, 1000);
+
+/* ---------------- качество (у каждого своё) ---------------- */
+const qName = h => h ? (h >= 2000 ? '4K' : h >= 1400 ? '1440p' : h + 'p') : '';
+function hlsLevels() { return P.hls && P.hls.levels ? P.hls.levels.map((l, i) => ({ i, h: l.height, br: l.bitrate })) : []; }
+function applyQualityPref() {
+  const pref = ls.get('qPref', 'auto'), lv = hlsLevels();
+  if (!P.hls || !lv.length) return updateQLabel();
+  if (pref === 'auto') P.hls.currentLevel = -1;
+  else { const fit = lv.filter(l => l.h <= pref).sort((a, b) => b.h - a.h)[0] || lv.slice().sort((a, b) => a.h - b.h)[0]; P.hls.currentLevel = fit.i; }
+  updateQLabel();
+}
+function ownActive() { return !!(C.state && P.override && P.override.for === C.state.url); }
+function updateQLabel() {
+  let t = 'Авто';
+  if (P.isYT()) t = 'Авто';
+  else if (P.hls && P.hls.levels && P.hls.levels.length) {
+    const cur = P.hls.currentLevel >= 0 ? P.hls.levels[P.hls.currentLevel] : null;
+    const auto = P.hls.autoLevelEnabled;
+    t = auto ? 'Авто' + (cur && cur.height ? ' · ' + qName(cur.height) : '') : qName(cur && cur.height) || 'Авто';
+  } else if (video.videoHeight) t = qName(video.videoHeight);
+  if (ownActive()) t += ' · своя';
+  $('#qLbl').textContent = t;
+}
+video.addEventListener('loadedmetadata', updateQLabel);
+video.addEventListener('resize', updateQLabel);
+function openQMenu() {
+  const m = $('#qMenu');
+  if (!m.classList.contains('hidden')) return m.classList.add('hidden');
+  const lv = hlsLevels(), pref = ls.get('qPref', 'auto');
+  let h = '<div class="qh">Качество меняется только у вас — у друзей останется их выбор, время общее.</div>';
+  if (lv.length) {
+    const auto = P.hls.autoLevelEnabled;
+    h += `<button data-q="auto" class="${auto ? 'on' : ''}">Авто <small>по скорости интернета</small></button>`;
+    lv.slice().sort((a, b) => b.h - a.h).forEach(l => h += `<button data-q="${l.i}" class="${!auto && P.hls.currentLevel === l.i ? 'on' : ''}">${qName(l.h) || 'Вариант ' + (l.i + 1)} <small>${(l.br / 1e6).toFixed(1)} Мбит/с</small></button>`);
+  } else if (P.isYT()) h += '<div class="qh" style="color:var(--dim)">YouTube подбирает качество сам по скорости интернета.</div>';
+  else if (C.state && C.state.url) h += `<div class="qh" style="color:var(--dim)">В этой ссылке одно качество${video.videoHeight ? ': <b style="color:var(--fg)">' + qName(video.videoHeight) + '</b>' : ''}. Нужно другое — вставьте себе ссылку на тот же фильм в нужном качестве.</div>`;
+  if (C.state && C.state.url) {
+    h += '<hr><button data-q="own">Своя ссылка или файл… <small>другое качество</small></button>';
+    if (ownActive()) h += '<button data-q="shared">Вернуть общую ссылку</button>';
+  }
+  m.innerHTML = h; m.classList.remove('hidden');
+  m.querySelectorAll('button').forEach(b => b.onclick = e => {
+    e.stopPropagation(); const q = b.dataset.q; m.classList.add('hidden');
+    if (q === 'own') return openSrc('own');
+    if (q === 'shared') { P.fileUrl = P.fileUrl && P.fileUrl.key === C.state.url ? P.fileUrl : null; return setOverride(null); }
+    if (q === 'auto') { ls.set('qPref', 'auto'); P.hls.currentLevel = -1; }
+    else { const l = P.hls.levels[+q]; ls.set('qPref', l.height || 'auto'); P.hls.currentLevel = +q; }
+    updateQLabel(); toast('Качество: ' + $('#qLbl').textContent);
+  });
+}
+$('#qBtn').onclick = e => { e.stopPropagation(); openQMenu(); };
+document.addEventListener('click', e => { if (!e.target.closest('.qwrap')) $('#qMenu').classList.add('hidden'); });
+
+/* кто на какой секунде */
+function myStatus() {
+  const s = C.state; if (!s || !s.url) return null;
+  if (!$('#loadErr').classList.contains('hidden')) return 'err';
+  if (!$('#needFile').classList.contains('hidden')) return 'nofile';
+  if (P.blocked) return 'blocked';
+  if (!P.ready) return 'buf';
+  if (P.buffering) return 'buf';
+  return P.paused() ? 'pause' : 'play';
+}
+setInterval(() => { const st = myStatus(); if (st) send({ t: 'pos', p: P.ready ? P.time() : null, s: st }); }, 1500);
+
+function describe(info, isMe) {
+  const s = C.state; if (!s || !s.url || !info) return null;
+  if (!isMe && Date.now() - info.got > 6000) return { t: null, cls: '', txt: 'нет данных' };
+  let t = info.p;
+  if (t != null && info.s === 'play') t += Math.max(0, (isMe ? 0 : hubNow() - info.at) / 1000);
+  const map = { err: ['bad', 'видео не загрузилось'], nofile: ['warn', 'выбирает файл'], blocked: ['warn', 'ждёт нажатия'], buf: ['warn', 'загружается'] };
+  if (map[info.s]) return { t, cls: map[info.s][0], txt: map[info.s][1] };
+  if (info.s === 'pause' && s.playing) return { t, cls: 'warn', txt: 'на паузе' };
+  const d = (t ?? 0) - expectedPos(s);
+  if (Math.abs(d) < 1.5) return { t, cls: 'ok', txt: 'вместе' };
+  const sec = Math.round(Math.abs(d));
+  return { t, cls: Math.abs(d) > 4 ? 'bad' : 'warn', txt: (d < 0 ? 'отстаёт на ' : 'впереди на ') + sec + ' с' };
+}
+function posHTML(x) { return x ? `<span class="dot ${x.cls}"></span>${x.t != null ? fmt(x.t) + ' · ' : ''}<span class="lbl">${x.txt}</span>` : ''; }
+setInterval(() => {
+  if (!C.state) return;
+  const mine = myStatus() ? describe({ p: P.ready ? P.time() : null, s: myStatus(), got: Date.now() }, true) : null;
+  const all = [];
+  for (const m of C.members) {
+    const x = m.id === me.id ? mine : describe(C.pos[m.id], false);
+    const html = posHTML(x);
+    const tile = m.id === me.id ? document.querySelector('.tile.self') : document.querySelector(`.tile[data-id="${CSS.escape(m.id)}"]`);
+    const tp = tile && tile.querySelector('.pos'); if (tp && tp.innerHTML !== html) tp.innerHTML = html;
+    const mp = document.querySelector(`.mpos[data-id="${CSS.escape(m.id)}"]`); if (mp && mp.innerHTML !== html) mp.innerHTML = html;
+    if (x) all.push({ name: m.id === me.id ? 'Вы' : m.name, x });
+  }
+  const pill = $('#syncPill');
+  if (!C.state.url || C.members.length < 2 || !all.length) { pill.classList.add('hidden'); return; }
+  pill.classList.remove('hidden');
+  const bad = all.filter(a => a.x.cls !== 'ok' && a.x.txt !== 'нет данных');
+  const dot = pill.querySelector('.dot');
+  if (!bad.length) { dot.className = 'dot ok'; $('#syncTxt').textContent = C.state.playing ? 'Все смотрят вместе' : 'Все на паузе вместе'; }
+  else { const w = bad.find(a => a.x.cls === 'bad') || bad[0]; dot.className = 'dot ' + w.x.cls; $('#syncTxt').textContent = `${w.name}: ${w.x.txt}` + (bad.length > 1 ? ` (+${bad.length - 1})` : ''); }
+}, 500);
 
 /* user actions → hub */
 function act(type, extra = {}) {
@@ -935,7 +1061,10 @@ function callPeer(id) {
   const call = C.peer.call(id, M.stream, { metadata: { name: me.name } });
   if (call) setupCall(call);
 }
-function onIncomingCall(call) {
+async function onIncomingCall(call) {
+  // принимаем звонки только от участников этой комнаты
+  for (let i = 0; i < 30 && !C.members.some(m => m.id === call.peer); i++) await sleep(200);
+  if (!C.members.some(m => m.id === call.peer)) { try { call.close(); } catch {} return; }
   const old = M.calls.get(call.peer); if (old) { try { old.close(); } catch {} }
   call.answer(M.stream); setupCall(call);
 }
@@ -954,8 +1083,8 @@ function setupCall(call) {
 function attachRemote(id, stream) {
   let r = M.remotes.get(id);
   if (!r) {
-    const tile = document.createElement('div'); tile.className = 'tile';
-    tile.innerHTML = `<video autoplay playsinline></video><div class="ava"><span></span></div><div class="vol-ctl"><input type="range" min="0" max="1.5" step="0.05" title="Громкость"></div><div class="name"><span></span></div>`;
+    const tile = document.createElement('div'); tile.className = 'tile'; tile.dataset.id = id;
+    tile.innerHTML = `<video autoplay playsinline></video><div class="ava"><span></span></div><div class="pos"></div><div class="vol-ctl"><input type="range" min="0" max="1.5" step="0.05" title="Громкость"></div><div class="name"><span></span></div>`;
     $('#people').append(tile);
     r = { id, tile, video: tile.querySelector('video'), vol: 1 };
     tile.querySelector('input').value = 1;
@@ -981,7 +1110,7 @@ function renderSelfTile() {
   let t = document.querySelector('.tile.self');
   if (!t) {
     t = document.createElement('div'); t.className = 'tile self';
-    t.innerHTML = `<video autoplay playsinline muted></video><div class="ava"><span></span></div><div class="name"></div>`;
+    t.innerHTML = `<video autoplay playsinline muted></video><div class="ava"><span></span></div><div class="pos"></div><div class="name"></div>`;
     $('#people').prepend(t);
   }
   const av = t.querySelector('.ava span'); av.textContent = (me.name || '?')[0].toUpperCase(); av.style.background = colorFor(me.name);
@@ -1039,7 +1168,7 @@ async function fillDevices() {
 function renderMembers() {
   $('#memberCount').textContent = C.members.length;
   $('#memberList').innerHTML = C.members.map(m => `<div class="member"><div class="av" style="background:${colorFor(m.name)}">${esc((m.name || '?')[0].toUpperCase())}</div>
-    <div class="nm">${esc(m.name)}${m.id === me.id ? '<small>вы</small>' : ''}</div>
+    <div class="nm-wrap"><div class="nm">${esc(m.name)}${m.id === me.id ? '<small>вы</small>' : ''}</div><div class="mpos" data-id="${esc(m.id)}"></div></div>
     <svg viewBox="0 0 24 24" class="${m.mic ? '' : 'off'}">${m.mic ? '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/>' : '<path d="M2 2l20 20M9 9v2a3 3 0 0 0 5 2M15 9V5a3 3 0 0 0-6-1M17 17A7 7 0 0 1 5 11M12 18v4"/>'}</svg>
     <svg viewBox="0 0 24 24" class="${m.cam ? '' : 'off'}">${m.cam ? '<path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/>' : '<path d="M2 2l20 20M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5 0h4a2 2 0 0 1 2 2v3l1 1L23 7v10"/>'}</svg></div>`).join('');
 }
@@ -1108,7 +1237,7 @@ function submitSrc() {
   act('load', { url, kind, title: $('#srcName').value.trim() || guessTitle(url) });
   closeSrc();
 }
-function setOverride(o) { P.override = o; ls.set('override', o && o.kind !== 'file' ? o : null); P.src = null; applyState(C.state, true); }
+function setOverride(o) { P.override = o; ls.set('override', o && o.kind !== 'file' ? o : null); P.src = null; applyState(C.state, true); setTimeout(updateQLabel, 300); if (o) toast('Своя ссылка включена — время остаётся общим'); }
 function onFilePicked(file, mode) {
   if (!file) return;
   const key = 'file:' + file.name + ':' + file.size;
@@ -1229,8 +1358,8 @@ seekEl.onpointermove = e => { const t = posFromEvt(e); $('#hoverTime').textConte
 seekEl.onpointerdown = e => { if (!P.dur()) return; seekEl.setPointerCapture(e.pointerId); seekDrag = posFromEvt(e); };
 seekEl.onpointerup = e => { if (seekDrag === null) return; const t = posFromEvt(e); seekDrag = null; act('seek', { pos: t }); };
 
-video.addEventListener('waiting', () => $('#spinner').classList.remove('hidden'));
-['playing', 'canplay', 'pause', 'seeked'].forEach(ev => video.addEventListener(ev, () => $('#spinner').classList.add('hidden')));
+video.addEventListener('waiting', () => { P.buffering = true; $('#spinner').classList.remove('hidden'); });
+['playing', 'canplay', 'pause', 'seeked'].forEach(ev => video.addEventListener(ev, () => { P.buffering = false; $('#spinner').classList.add('hidden'); }));
 video.addEventListener('error', () => { if (P.src && !P.isYT() && video.getAttribute('src') !== null) showLoadErr(); });
 
 // скрываем панель управления, когда мышь не двигается
