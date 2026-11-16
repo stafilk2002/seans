@@ -90,7 +90,8 @@ body.lit .ambient{opacity:0}
 .stage{z-index:1;position:relative;flex:1;min-height:0;border-radius:22px;overflow:hidden;background:#0a0a0c;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.6)}
 .stage video.movie,.stage #yt,.stage #yt iframe{position:absolute;inset:0;width:100%;height:100%;background:#000;border:0}
 .stage video.movie{object-fit:contain}
-.yt-shield{position:absolute;inset:0;z-index:2}
+.stage.embed .controls{display:none}
+#ytWrap{position:absolute;inset:0}
 .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:24px;z-index:3}
 .empty h2{font-size:28px;font-weight:700;letter-spacing:-.02em}
 .empty p{color:var(--dim);max-width:420px;line-height:1.5}
@@ -138,9 +139,15 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 /* participants */
 .people{display:flex;gap:10px;overflow-x:auto;padding-bottom:2px;min-height:0;flex-shrink:0;scrollbar-width:none}
 .people::-webkit-scrollbar{display:none}
-.stage:fullscreen .people{position:absolute;top:18px;right:18px;z-index:8;flex-direction:column;max-height:calc(100% - 140px)}
+.stage:fullscreen .people{position:absolute;top:18px;right:18px;z-index:8;flex-direction:column;max-height:calc(100% - 36px);overflow-y:auto;overflow-x:visible;padding:2px}
 .tile{position:relative;width:168px;aspect-ratio:16/10;flex-shrink:0;border-radius:14px;overflow:hidden;background:#151517;border:2px solid transparent;transition:border-color .15s,box-shadow .15s}
-.stage:fullscreen .tile{width:150px}
+.stage:fullscreen .tile{width:var(--fsw,170px)}
+.stage:fullscreen .tile .name{left:26px}
+.grip{display:none;position:absolute;left:0;bottom:0;width:26px;height:26px;cursor:nesw-resize;z-index:3;touch-action:none}
+.grip:before{content:"";position:absolute;left:5px;bottom:5px;width:10px;height:10px;border-left:2.5px solid rgba(255,255,255,.85);border-bottom:2.5px solid rgba(255,255,255,.85);border-bottom-left-radius:3px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.8))}
+.stage:fullscreen .grip{display:block;opacity:0;transition:opacity .2s}
+.stage:fullscreen .tile:hover .grip,.resizing .grip{opacity:1}
+.resizing,.resizing *{cursor:nesw-resize!important;user-select:none}
 .tile.speaking{border-color:var(--green);box-shadow:0 0 0 3px rgba(48,209,88,.25)}
 .tile video{width:100%;height:100%;object-fit:cover;display:block}
 .tile.self video{transform:scaleX(-1)}
@@ -328,6 +335,7 @@ details li{margin:4px 0}
       <div class="logo"><b><svg viewBox="0 0 10 12"><path d="M0 0l10 6-10 6z"/></svg></b><span>СЕАНС</span></div>
       <div class="title" id="movieTitle">Ничего не выбрано</div>
       <span class="pill sync-pill hidden" id="syncPill" title="Синхронизация участников"><span class="dot ok"></span><span id="syncTxt">Все вместе</span></span>
+      <button class="pill hidden" id="fsPill" title="Во весь экран (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M4 15v5h5M20 15v5h-5"/></svg><span class="lbl">Экран</span></button>
       <button class="pill" id="changeBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Фильм</span></button>
       <button class="pill" id="codePill" title="Скопировать ссылку-приглашение"><span class="conn-dot" id="connDot"></span><span class="code" id="roomCodeLbl"></span><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
     </div>
@@ -336,7 +344,7 @@ details li{margin:4px 0}
     <canvas class="glow" id="glow" width="64" height="36"></canvas>
     <div class="stage" id="stage">
       <video class="movie hidden" id="movie" playsinline preload="auto"></video>
-      <div id="ytWrap" class="hidden"><div id="yt"></div><div class="yt-shield" id="ytShield"></div></div>
+      <div id="ytWrap" class="hidden"><div id="yt"></div></div>
       <div class="empty" id="emptyState">
         <h2>Что смотрим?</h2>
         <p>Вставьте ссылку на видео — его увидят все в комнате. Ставить на паузу и перематывать может любой.</p>
@@ -421,18 +429,20 @@ details li{margin:4px 0}
       <div><b>Файл</b>у каждого свой, время общее</div>
     </div>
     <details id="rezkaHelp">
-      <summary>Как взять фильм с HDRezka, Kinogo и похожих сайтов</summary>
+      <summary>Как взять фильм с любого сайта (HDRezka, Kinogo и др.)</summary>
       <div class="body">
-        <b>VK Видео</b> — просто вставьте ссылку на страницу ролика, закладка не нужна.<br><br>
-        Сайты вроде HDRezka и Kinogo не дают управлять своим плеером извне, поэтому нужна прямая ссылка на сам видеопоток. Её достаёт закладка:
+        <b>YouTube и VK Видео</b> — просто вставьте ссылку на страницу ролика.<br><br>
+        <b>Остальные сайты — расширение «Сеанс»</b> <span id="extState"></span><br>
+        Оно видит видео во всех плеерах на странице (даже встроенных с других сайтов, как на Kinogo) и отправляет его сюда одной кнопкой.
         <ol>
-          <li>Перетащите эту кнопку на панель закладок браузера:<br><a class="bm" id="bookmarklet" href="#">🎬 Ссылка на видео</a></li>
-          <li>Откройте фильм на HDRezka, выберите озвучку и качество, нажмите ▶ (можно сразу на паузу).</li>
-          <li>Нажмите закладку «🎬 Ссылка на видео» — ссылка скопируется. Если плеер встроен с другого сайта (как на Kinogo), закладка предложит открыть его отдельно — там снова ▶ и закладка.</li>
-          <li>Вставьте её сюда.</li>
+          <li><a class="bm" href="seans-extension.zip" download>⬇ Скачать расширение</a> и распакуйте архив.</li>
+          <li>Откройте <code>chrome://extensions</code> (в Dia — <code>dia://extensions</code>), включите «Режим разработчика» (Developer mode) справа вверху.</li>
+          <li>Нажмите «Загрузить распакованное» (Load unpacked) и выберите распакованную папку. Закрепите значок ▶ на панели.</li>
+          <li>На сайте с фильмом нажмите ▶ в плеере, затем значок расширения → <b>«Включить в Сеансе»</b>.</li>
         </ol>
-        Без закладки: F12 → вкладка «Network» → фильтр <code>mp4</code> или <code>m3u8</code> → скопируйте адрес запроса.<br><br>
-        Если у друга ссылка не откроется (некоторые ссылки временные), он нажмёт «Своя ссылка или файл» и вставит свою — время всё равно будет общим.
+        Работает в Chrome, Dia, Edge, Яндекс Браузере, Arc, Opera. Если у друга видео не грузится — ему тоже стоит поставить расширение: оно помогает открывать ссылки, которые сайт отдаёт только «своим».<br><br>
+        <span style="color:var(--faint)">Без расширения: закладка <a class="bm" id="bookmarklet" href="#" style="padding:3px 9px;margin:0 2px">🎬 Ссылка на видео</a> — перетащите её на панель закладок, на странице фильма нажмите ▶ и её. Работает не везде.</span><br><br>
+        Платные сервисы с защитой (Кинопоиск, Okko, Иви, Netflix) смотреть через «Сеанс» нельзя — их видео зашифровано.
       </div>
     </details>
     <div class="actions"><button class="btn btn-glass" id="srcCancel">Отмена</button><button class="btn btn-primary" id="srcOk">Включить</button></div>
@@ -442,7 +452,7 @@ details li{margin:4px 0}
 <div class="modal-bg hidden" id="setModal">
   <div class="modal">
     <h3>Звук и связь</h3>
-    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 8</span></p>
+    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 9</span></p>
     <div class="set-row"><label>Микрофон</label><select id="micSel"></select></div>
     <div class="set-row"><label>Камера</label><select id="camSel"></select></div>
     <div class="set-row"><div class="gate-wrap"><label>Порог микрофона<small>Голос проходит, только когда громче отметки. Поднимите её, если друзья слышат фильм или шум.</small></label>
@@ -733,13 +743,17 @@ const P = {
     if (this.isVK()) return this.vkState !== 'playing' && !this.vkWant;
     return video.paused;
   },
+  expectUntil: 0,
+  expect(ms = 1600) { this.expectUntil = Math.max(this.expectUntil, performance.now() + ms); },
   play() {
+    if (this.isEmbed()) this.expect(3000);
     if (this.isYT()) { this.yt && this.yt.playVideo(); return Promise.resolve(); }
     if (this.isVK()) { if (this.vk) { this.vkWant = true; setTimeout(() => this.vkWant = false, 3000); this.vk.play(); } return Promise.resolve(); }
     return video.play();
   },
-  pause() { if (this.isYT()) this.yt && this.yt.pauseVideo(); else if (this.isVK()) { this.vkWant = false; this.vk && this.vk.pause(); } else video.pause(); },
+  pause() { if (this.isEmbed()) this.expect(); if (this.isYT()) this.yt && this.yt.pauseVideo(); else if (this.isVK()) { this.vkWant = false; this.vk && this.vk.pause(); } else video.pause(); },
   seek(t) {
+    if (this.isEmbed()) this.expect(2500);
     if (this.isYT()) this.yt && this.yt.seekTo(t, true);
     else if (this.isVK()) { if (this.vk) { this.vk.seek(t); this.vkTime = t; this.vkAt = performance.now(); } }
     else { try { video.currentTime = t; } catch {} }
@@ -798,6 +812,7 @@ async function loadSource(s) {
   $('#emptyState').classList.add('hidden');
   $('#movieTitle').textContent = s.title || 'Без названия';
   const emb = src.kind === 'youtube' || src.kind === 'vk';
+  $('#stage').classList.toggle('embed', emb); $('#fsPill').classList.toggle('hidden', !emb);
   video.classList.toggle('hidden', emb);
   $('#ytWrap').classList.toggle('hidden', !emb);
   if (src.kind === 'vk') { await loadVK(vkParams(src.url)); return; }
@@ -808,13 +823,14 @@ async function loadSource(s) {
     if (P.fileUrl && P.fileUrl.key === src.url) { video.src = P.fileUrl.url; }
     else { $('#needFileTxt').textContent = `Выбран локальный файл «${name}». Выберите у себя такой же — время у всех будет общим.`; $('#needFile').classList.remove('hidden'); return; }
   } else if (src.kind === 'hls') {
+    await extPrepare(splitRef(src.url).ref);
     if (window.Hls && Hls.isSupported()) {
       P.hls = new Hls({ maxBufferLength: 60 }); P.hls.loadSource(src.url); P.hls.attachMedia(video);
       P.hls.on(Hls.Events.MANIFEST_PARSED, () => applyQualityPref());
       P.hls.on(Hls.Events.LEVEL_SWITCHED, () => updateQLabel());
       P.hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) { console.warn('hls', d); if (d.type === 'networkError' && !P.hlsRetried) { P.hlsRetried = true; P.hls.destroy(); P.hls = null; video.src = src.url; } else showLoadErr(`Причина: поток не воспроизводится (${d.details || d.type}). Возможно, ссылка устарела — достаньте её заново или вставьте свою.`); } });
     } else video.src = src.url;
-  } else video.src = src.url;
+  } else { await extPrepare(splitRef(src.url).ref); video.src = src.url; }
   await waitMeta();
 }
 
@@ -841,7 +857,7 @@ async function loadVK(v) {
   f.src = `https://vk.com/video_ext.php?oid=${encodeURIComponent(v.oid)}&id=${encodeURIComponent(v.id)}${v.hash ? '&hash=' + encodeURIComponent(v.hash) : ''}&hd=4&js_api=1`;
   f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture'; f.setAttribute('frameborder', '0');
   f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000';
-  $('#ytShield').before(f);   // над чёрной подложкой YouTube, под «щитом» кликов
+  $('#ytWrap').append(f);   // поверх чёрной подложки YouTube; кнопки VK доступны
   await new Promise(res => {
     let done = false; const fin = () => { if (!done) { done = true; res(); } };
     setTimeout(() => { if (!P.ready) showLoadErr('VK-видео не загрузилось. Возможно, автор запретил встраивание, видео закрыто или нужен вход в VK. Попробуйте другую ссылку.'); fin(); }, 20000);
@@ -851,11 +867,11 @@ async function loadVK(v) {
         const upd = st => { if (!st) return; if (typeof st.time === 'number') { P.vkTime = st.time; P.vkAt = performance.now(); } if (st.duration) P.vkDur = st.duration; if (st.state) P.vkState = st.state; if (st.quality && st.quality !== P.vkQ) { P.vkQ = st.quality; updateQLabel(); } };
         pl.on('inited', st => { upd(st); P.ready = true; P.applyVol(); fin(); });
         pl.on('timeupdate', upd);
-        ['started', 'resumed'].forEach(e => pl.on(e, st => { upd(st); P.vkState = 'playing'; P.buffering = false; }));
-        pl.on('paused', st => { upd(st); P.vkState = 'paused'; });
+        ['started', 'resumed'].forEach(e => pl.on(e, st => { upd(st); P.vkState = 'playing'; P.buffering = false; embedUserEvent('play'); }));
+        pl.on('paused', st => { upd(st); P.vkState = 'paused'; embedUserEvent('pause'); });
         pl.on('ended', st => { upd(st); P.vkState = 'ended'; });
-        pl.on('adStarted', () => { P.buffering = true; });
-        pl.on('adCompleted', () => { P.buffering = false; });
+        pl.on('adStarted', () => { P.buffering = true; P.inAd = true; });
+        pl.on('adCompleted', () => { P.buffering = false; P.inAd = false; P.expect(2500); });
         pl.on('error', () => { showLoadErr('VK не может показать это видео здесь — возможно, встраивание запрещено. Попробуйте другую ссылку.'); fin(); });
       } catch (e) { console.warn('vk api', e); }
     };
@@ -873,13 +889,14 @@ async function loadYT(id) {
   await new Promise(res => {
     P.yt = new YT.Player('yt', {
       videoId: id, width: '100%', height: '100%',
-      playerVars: { controls: 0, disablekb: 1, modestbranding: 1, rel: 0, playsinline: 1, iv_load_policy: 3, fs: 0 },
-      events: { onReady: () => { P.ready = true; P.applyVol(); res(); }, onStateChange: e => { P.buffering = e.data === 3; $('#spinner').classList.toggle('hidden', e.data !== 3); }, onError: () => { showLoadErr('YouTube не даёт встроить это видео. Попробуйте другое.'); res(); } },
+      playerVars: { controls: 1, modestbranding: 1, rel: 0, playsinline: 1, fs: 0 },
+      events: { onReady: () => { P.ready = true; P.applyVol(); res(); }, onStateChange: e => { P.buffering = e.data === 3; $('#spinner').classList.add('hidden'); embedUserEvent(e.data === 1 ? 'play' : e.data === 2 ? 'pause' : null); }, onError: () => { showLoadErr('YouTube не даёт встроить это видео. Попробуйте другое.'); res(); } },
     });
   });
 }
 
 function showLoadErr(text) {
+  if (C.state && splitRef(C.state.url).ref && !EXT.present) text = (text ? text + ' ' : '') + 'Этот сайт отдаёт видео только «своим» — поставьте расширение «Сеанс» (подсказка в окне «＋ Фильм»), оно это обходит.';
   if (text) $('#loadErrTxt').textContent = text;
   $('#loadErr').classList.remove('hidden'); $('#spinner').classList.add('hidden');
 }
@@ -902,6 +919,25 @@ async function tryPlay() {
   try { await P.play(); P.blocked = false; $('#tapToPlay').classList.add('hidden'); Loop.maybeStart(); }
   catch (e) { if (e && e.name === 'NotAllowedError') { P.blocked = true; $('#tapToPlay').classList.remove('hidden'); } }
 }
+
+/* Действия внутри встроенного плеера (YouTube/VK) — кнопки самого плеера.
+   Свои программные команды помечаем как «ожидаемые», остальное — это нажал человек. */
+function embedUserEvent(type) {
+  if (!type || !P.isEmbed() || !C.state || !C.state.url || P.inAd) return;
+  if (performance.now() < P.expectUntil) return;
+  if (type === 'play' && !C.state.playing) act('play');
+  if (type === 'pause' && C.state.playing) act('pause');
+}
+let seekWatch = { t: null, w: 0 };
+setInterval(() => {   // перемотка ползунком YouTube/VK
+  if (!P.isEmbed() || !P.ready || !C.state || !C.state.url) { seekWatch.t = null; return; }
+  const t = P.time(), w = performance.now();
+  if (seekWatch.t !== null && !P.inAd && w > P.expectUntil) {
+    const predicted = seekWatch.t + (P.paused() ? 0 : (w - seekWatch.w) / 1000);
+    if (Math.abs(t - predicted) > 2.5 && Math.abs(t - seekWatch.t) > 2.5) act('seek', { pos: t });
+  }
+  seekWatch = { t, w };
+}, 500);
 
 /* drift correction — раз в секунду подтягиваем всех к общему времени */
 setInterval(() => {
@@ -1216,7 +1252,7 @@ function attachRemote(id, stream) {
   let r = M.remotes.get(id);
   if (!r) {
     const tile = document.createElement('div'); tile.className = 'tile'; tile.dataset.id = id;
-    tile.innerHTML = `<video autoplay playsinline></video><div class="ava"><span></span></div><div class="pos"></div><div class="vol-ctl"><input type="range" min="0" max="1.5" step="0.05" title="Громкость"></div><div class="name"><span></span></div>`;
+    tile.innerHTML = `<video autoplay playsinline></video><div class="ava"><span></span></div><div class="pos"></div><div class="grip" title="Потяните, чтобы изменить размер"></div><div class="vol-ctl"><input type="range" min="0" max="1.5" step="0.05" title="Громкость"></div><div class="name"><span></span></div>`;
     $('#people').append(tile);
     r = { id, tile, video: tile.querySelector('video'), vol: 1 };
     tile.querySelector('input').value = 1;
@@ -1242,7 +1278,7 @@ function renderSelfTile() {
   let t = document.querySelector('.tile.self');
   if (!t) {
     t = document.createElement('div'); t.className = 'tile self';
-    t.innerHTML = `<video autoplay playsinline muted></video><div class="ava"><span></span></div><div class="pos"></div><div class="name"></div>`;
+    t.innerHTML = `<video autoplay playsinline muted></video><div class="ava"><span></span></div><div class="pos"></div><div class="grip" title="Потяните, чтобы изменить размер"></div><div class="name"></div>`;
     $('#people').prepend(t);
   }
   const av = t.querySelector('.ava span'); av.textContent = (me.name || '?')[0].toUpperCase(); av.style.background = colorFor(me.name);
@@ -1311,7 +1347,7 @@ function mediaCard(m) {
   const isFile = m.kind === 'file';
   const badge = { youtube: 'YouTube', vk: 'VK', hls: 'Поток', video: 'Видео', file: 'Файл' }[m.kind] || 'Видео';
   let host = '', shown = '';
-  if (!isFile) { try { const u = new URL(m.url); host = u.hostname.replace(/^www\./, ''); const path = decodeURIComponent(u.pathname + u.search); shown = host + (path.length > 1 ? (path.length > 38 ? path.slice(0, 18) + '…' + path.slice(-16) : path) : ''); } catch { shown = m.url.slice(0, 60); } }
+  if (!isFile) { try { const u = new URL(splitRef(m.url).clean); host = u.hostname.replace(/^www\./, ''); const path = decodeURIComponent(u.pathname + u.search); shown = host + (path.length > 1 ? (path.length > 38 ? path.slice(0, 18) + '…' + path.slice(-16) : path) : ''); } catch { shown = m.url.slice(0, 60); } }
   const yid = m.kind === 'youtube' ? ytId(m.url) : null;
   const hue = [...(host || m.title || 'x')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 360;
   const thumb = yid ? `background-image:url(https://i.ytimg.com/vi/${yid}/mqdefault.jpg)` : `background:linear-gradient(135deg,hsl(${hue} 55% 32%),hsl(${(hue + 50) % 360} 60% 18%))`;
@@ -1389,6 +1425,7 @@ function openSrc(mode = 'room') {
 }
 function closeSrc() { $('#srcModal').classList.add('hidden'); }
 function guessTitle(url) {
+  url = splitRef(url).clean;
   try { const u = new URL(url); if (detectKind(url) === 'youtube') return 'YouTube'; if (detectKind(url) === 'vk') return 'VK Видео'; const last = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || u.hostname); return last.replace(/\.(mp4|m3u8|webm|mkv|mov)$/i, '').replace(/[_.-]+/g, ' ').slice(0, 60) || u.hostname; } catch { return 'Видео'; }
 }
 function submitSrc() {
@@ -1396,8 +1433,8 @@ function submitSrc() {
   if (!url) return toast('Вставьте ссылку');
   url = url.replace(/^.*?(https?:\/\/)/, '$1').split(/\s/)[0];   // берём первую ссылку из вставленного текста
   if (!/^https?:\/\//i.test(url)) return toast('Нужна ссылка, начинающаяся с http');
-  if (isPageUrl(url)) { $('#rezkaHelp').open = true; return toast('Это ссылка на страницу сайта, а нужна прямая ссылка на видео — см. подсказку ниже', 5000); }
-  const kind = detectKind(url);
+  if (isPageUrl(splitRef(url).clean)) { $('#rezkaHelp').open = true; return toast('Это ссылка на страницу сайта, а нужна прямая ссылка на видео — см. подсказку ниже', 5000); }
+  const kind = detectKind(splitRef(url).clean);
   if (kind === 'youtube' && !ytId(url)) return toast('Не получилось распознать ссылку YouTube');
   if (pickMode === 'own') { setOverride({ url, kind, for: C.state.url }); closeSrc(); return; }
   act('load', { url, kind, title: $('#srcName').value.trim() || guessTitle(url) });
@@ -1412,6 +1449,35 @@ function onFilePicked(file, mode) {
   else if (mode === 'need') { P.fileUrl = { key: C.state.url, url: URL.createObjectURL(file) }; P.src = null; applyState(C.state, true); }
   else { const k = 'file:' + file.name; P.fileUrl = { key: k, url: URL.createObjectURL(file) }; setOverride({ url: k, kind: 'file', for: C.state.url }); }
 }
+
+/* ---------------- расширение «Сеанс» ---------------- */
+const EXT = { present: !!document.documentElement.dataset.seansExt, pending: null, waits: {} };
+function splitRef(url) { const m = String(url || '').match(/#seans-ref=([^#]*)$/); return m ? { clean: url.slice(0, m.index), ref: decodeURIComponent(m[1]) } : { clean: url, ref: null }; }
+function extPrepare(ref) {
+  if (!EXT.present) return Promise.resolve(false);
+  return new Promise(res => {
+    const id = Math.random().toString(36).slice(2); EXT.waits[id] = res;
+    window.postMessage({ source: 'seans-page', type: 'prepare', ref, id }, location.origin);
+    setTimeout(() => { if (EXT.waits[id]) { delete EXT.waits[id]; res(false); } }, 1500);
+  });
+}
+function offerExtLink(url, title) {
+  openSrc('room'); $('#srcInput').value = url; $('#srcName').value = title ? String(title).replace(/\s*[—|-]\s*(смотреть|HDrezka|Kinogo).*$/i, '').slice(0, 80) : '';
+  toast('Ссылка из расширения — нажмите «Включить»');
+}
+window.addEventListener('message', e => {
+  if (e.source !== window || !e.data || e.data.source !== 'seans-ext') return;
+  const d = e.data;
+  if (d.type === 'hello') { EXT.present = true; EXT.version = d.version; updateExtState(); }
+  if (d.type === 'prepared' && EXT.waits[d.id]) { EXT.waits[d.id](d.ok); delete EXT.waits[d.id]; }
+  if (d.type === 'load') {
+    if (!$('#room').classList.contains('hidden') && C.code) offerExtLink(d.url, d.title);
+    else { EXT.pending = { url: d.url, title: d.title }; toast('Создайте комнату или войдите — ссылка из расширения подставится сама', 5000); }
+  }
+});
+function updateExtState() { const el = $('#extState'); if (el) el.innerHTML = EXT.present ? '<span style="color:var(--green)">· установлено ✓</span>' : ''; }
+window.postMessage({ source: 'seans-page', type: 'ping' }, location.origin);
+updateExtState();
 
 /* bookmarklet для HDRezka и других сайтов */
 (function () {
@@ -1457,6 +1523,7 @@ async function enterRoom(code, create) {
     $('#roomCodeLbl').textContent = code; $('#inviteCode').textContent = code;
     updateCallbar(); renderSelfTile(); updateUI();
     await ensureConnected(false);
+    if (EXT.pending) { const p = EXT.pending; EXT.pending = null; setTimeout(() => offerExtLink(p.url, p.title), 600); }
     if (create) setTimeout(() => toast('Комната готова — пригласите друзей по ссылке или коду ' + code, 5000), 400);
   } catch (e) {
     console.error(e);
@@ -1507,15 +1574,26 @@ $('#tapBtn').onclick = () => { M.ctx && M.ctx.resume(); tryPlay(); };
 $$('.modal-bg').forEach(bg => bg.addEventListener('mousedown', e => { if (e.target === bg && bg.id !== 'permModal') bg.classList.add('hidden'); }));
 
 $('#playBtn').onclick = togglePlay;
-$('#ytShield').onclick = togglePlay;
 video.onclick = togglePlay;
-$('#ytShield').ondblclick = video.ondblclick = () => $('#fsBtn').click();
+video.ondblclick = () => $('#fsBtn').click();
 $('#back10').onclick = () => C.state && C.state.url && act('seek', { pos: P.time() - 10 });
 $('#fwd10').onclick = () => C.state && C.state.url && act('seek', { pos: P.time() + 10 });
 $('#volRange').value = P.vol;
 $('#volRange').oninput = e => { P.vol = +e.target.value; P.muted = false; ls.set('vol', P.vol); P.applyVol(); updateUI(); };
 $('#muteBtn').onclick = () => { P.muted = !P.muted; P.applyVol(); updateUI(); };
+/* размер плиток в полноэкранном режиме — тянуть за левый нижний уголок */
+$('#people').style.setProperty('--fsw', ls.get('fsw', 170) + 'px');
+$('#people').addEventListener('pointerdown', e => {
+  const g = e.target.closest('.grip'); if (!g || !document.fullscreenElement) return;
+  e.preventDefault(); g.setPointerCapture(e.pointerId);
+  const ppl = $('#people'), x0 = e.clientX, y0 = e.clientY, w0 = g.closest('.tile').getBoundingClientRect().width;
+  document.body.classList.add('resizing');
+  const move = ev => { const d = Math.max(x0 - ev.clientX, (ev.clientY - y0) * 1.6); const w = Math.round(Math.max(110, Math.min(window.innerWidth * 0.6, w0 + d))); ppl.style.setProperty('--fsw', w + 'px'); };
+  const up = () => { g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); document.body.classList.remove('resizing'); ls.set('fsw', parseInt(ppl.style.getPropertyValue('--fsw'))); };
+  g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+});
 document.addEventListener('fullscreenchange', () => { (document.fullscreenElement ? $('#stage') : $('.main')).append($('#people')); });
+$('#fsPill').onclick = () => $('#fsBtn').click();
 $('#fsBtn').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else $('#stage').requestFullscreen().catch(() => {}); };
 
 const seekEl = $('#seek');
