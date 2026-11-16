@@ -90,7 +90,9 @@ body.lit .ambient{opacity:0}
 .stage{z-index:1;position:relative;flex:1;min-height:0;border-radius:22px;overflow:hidden;background:#0a0a0c;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.6)}
 .stage video.movie,.stage #yt,.stage #yt iframe{position:absolute;inset:0;width:100%;height:100%;background:#000;border:0}
 .stage video.movie{object-fit:contain}
-.stage.embed .controls{display:none}
+.controls.below{position:relative;padding:0 6px;background:none;opacity:1!important;z-index:2}
+.controls.below .cbtn:hover{background:rgba(255,255,255,.1)}
+#belowBar:empty{display:none}
 #ytWrap{position:absolute;inset:0}
 .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:24px;z-index:3}
 .empty h2{font-size:28px;font-weight:700;letter-spacing:-.02em}
@@ -383,6 +385,7 @@ details li{margin:4px 0}
       </div>
     </div>
     </div>
+    <div id="belowBar"></div>
     <div class="people" id="people"></div>
   </div>
 
@@ -452,7 +455,7 @@ details li{margin:4px 0}
 <div class="modal-bg hidden" id="setModal">
   <div class="modal">
     <h3>Звук и связь</h3>
-    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 10</span></p>
+    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 11</span></p>
     <div class="set-row"><label>Микрофон</label><select id="micSel"></select></div>
     <div class="set-row"><label>Камера</label><select id="camSel"></select></div>
     <div class="set-row"><div class="gate-wrap"><label>Порог микрофона<small>Голос проходит, только когда громче отметки. Поднимите её, если друзья слышат фильм или шум.</small></label>
@@ -755,7 +758,7 @@ const P = {
   seek(t) {
     if (this.isEmbed()) this.expect(2500);
     if (this.isYT()) this.yt && this.yt.seekTo(t, true);
-    else if (this.isVK()) { if (this.vk) { this.vk.seek(t); this.vkTime = t; this.vkAt = performance.now(); } }
+    else if (this.isVK()) { if (this.vk) { this.vk.seek(t); if (this.vkState === 'playing') { this.vkTime = t; this.vkAt = performance.now(); } } }
     else { try { video.currentTime = t; } catch {} }
   },
   rate(r) { if (!this.isEmbed() && Math.abs(video.playbackRate - r) > 0.004) video.playbackRate = r; },
@@ -795,7 +798,7 @@ function resetPlayer() {
   if (P.yt) { try { P.yt.destroy(); } catch {} P.yt = null; }
   if (P.vk) { try { P.vk.destroy(); } catch {} P.vk = null; }
   const vf = $('#vkFrame'); if (vf) vf.remove();
-  P.vkState = 'unstarted'; P.vkTime = 0; P.vkDur = 0; P.vkWant = false;
+  P.vkState = 'unstarted'; P.vkTime = 0; P.vkDur = 0; P.vkWant = false; P.vkStarted = false; P.loadedAt = performance.now();
   try { Glow.reset(); } catch {}
   $('#yt') || $('#ytWrap').prepend(Object.assign(document.createElement('div'), { id: 'yt' }));
   video.pause(); video.removeAttribute('src'); video.load();
@@ -813,6 +816,7 @@ async function loadSource(s) {
   $('#movieTitle').textContent = s.title || 'Без названия';
   const emb = src.kind === 'youtube' || src.kind === 'vk';
   $('#stage').classList.toggle('embed', emb); $('#fsPill').classList.toggle('hidden', !emb);
+  const ctl = $('#controls'); ctl.classList.toggle('below', emb); (emb ? $('#belowBar') : $('#stage')).append(ctl);
   video.classList.toggle('hidden', emb);
   $('#ytWrap').classList.toggle('hidden', !emb);
   if (src.kind === 'vk') { await loadVK(vkParams(src.url)); return; }
@@ -867,7 +871,7 @@ async function loadVK(v) {
         const upd = st => { if (!st) return; if (typeof st.time === 'number') { P.vkTime = st.time; P.vkAt = performance.now(); } if (st.duration) P.vkDur = st.duration; if (st.state) P.vkState = st.state; if (st.quality && st.quality !== P.vkQ) { P.vkQ = st.quality; updateQLabel(); } };
         pl.on('inited', st => { upd(st); P.ready = true; P.applyVol(); fin(); });
         pl.on('timeupdate', upd);
-        ['started', 'resumed'].forEach(e => pl.on(e, st => { upd(st); P.vkState = 'playing'; P.buffering = false; embedUserEvent('play'); }));
+        ['started', 'resumed'].forEach(e => pl.on(e, st => { upd(st); P.vkState = 'playing'; P.vkStarted = true; P.buffering = false; embedUserEvent('play'); }));
         pl.on('paused', st => { upd(st); P.vkState = 'paused'; embedUserEvent('pause'); });
         pl.on('ended', st => { upd(st); P.vkState = 'ended'; });
         pl.on('adStarted', () => { P.buffering = true; P.inAd = true; });
@@ -929,18 +933,25 @@ function embedUserEvent(type) {
   if (performance.now() < P.expectUntil) return;
   P.userTouch = performance.now();
   if (!type) return;
-  if (type === 'play' && !C.state.playing) act('play');
-  if (type === 'pause' && C.state.playing) act('pause');
+  const room = expectedPos(C.state), mine = P.time(), near = Math.abs(mine - room) < 4;
+  if (type === 'play' && !C.state.playing) act('play', { pos: room });
+  if (type === 'pause' && C.state.playing) act('pause', { pos: near ? mine : room });
 }
-let seekWatch = { t: null, w: 0 };
+let seekWatch = { t: null, w: 0, cand: null };
 setInterval(() => {   // перемотка ползунком YouTube/VK
-  if (!P.isEmbed() || !P.ready || !C.state || !C.state.url) { seekWatch.t = null; return; }
+  if (!P.isEmbed() || !P.ready || !C.state || !C.state.url) { seekWatch = { t: null, w: 0, cand: null }; return; }
   const t = P.time(), w = performance.now();
-  if (seekWatch.t !== null && !P.inAd && w > P.expectUntil) {
+  const quiet = !P.inAd && w > P.expectUntil && w - (P.loadedAt || 0) > 6000 && (!P.isVK() || P.vkStarted);
+  if (seekWatch.cand) {   // подтверждаем: человек действительно остался в новом месте
+    const c = seekWatch.cand, exp = c.t + (P.paused() ? 0 : (w - c.w) / 1000);
+    if (quiet && Math.abs(t - exp) < 1.5 && Math.abs(t - expectedPos(C.state)) > 3) { P.userTouch = w; act('seek', { pos: t }); }
+    seekWatch.cand = null;
+  } else if (seekWatch.t !== null && quiet) {
     const predicted = seekWatch.t + (P.paused() ? 0 : (w - seekWatch.w) / 1000);
-    if (Math.abs(t - predicted) > 2.5 && Math.abs(t - seekWatch.t) > 2.5) { P.userTouch = w; act('seek', { pos: t }); }
+    // скачок, причём В СТОРОНУ от общего времени (подтяжки к общему времени — не в счёт)
+    if (Math.abs(t - predicted) > 2.5 && Math.abs(t - seekWatch.t) > 2.5 && Math.abs(t - expectedPos(C.state)) > 3) { P.userTouch = w; seekWatch.cand = { t, w }; }
   }
-  seekWatch = { t, w };
+  seekWatch.t = t; seekWatch.w = w;
 }, 500);
 
 /* drift correction — раз в секунду подтягиваем всех к общему времени */
@@ -1086,8 +1097,9 @@ setInterval(() => {
 function act(type, extra = {}) {
   if (!C.state) return;
   const s = { ...C.state, at: hubNow() };
-  if (type === 'play') { s.playing = true; s.pos = P.ready ? P.time() : expectedPos(C.state); }
-  if (type === 'pause') { s.playing = false; s.pos = P.ready ? P.time() : expectedPos(C.state); }
+  const given = Number.isFinite(extra.pos) ? extra.pos : null;
+  if (type === 'play') { s.playing = true; s.pos = given ?? (P.ready ? P.time() : expectedPos(C.state)); }
+  if (type === 'pause') { s.playing = false; s.pos = given ?? (P.ready ? P.time() : expectedPos(C.state)); }
   if (type === 'seek') { s.pos = Math.max(0, Math.min(extra.pos, P.dur() || extra.pos)); }
   if (type !== 'load') applyState(s, type === 'seek' && !P.isEmbed());
   if (!send({ t: 'action', a: { type, pos: type === 'load' ? 0 : s.pos, ...extra } })) toast('Нет связи с комнатой…');
