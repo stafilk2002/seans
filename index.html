@@ -455,7 +455,7 @@ details li{margin:4px 0}
 <div class="modal-bg hidden" id="setModal">
   <div class="modal">
     <h3>Звук и связь</h3>
-    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 11</span></p>
+    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 12</span></p>
     <div class="set-row"><label>Микрофон</label><select id="micSel"></select></div>
     <div class="set-row"><label>Камера</label><select id="camSel"></select></div>
     <div class="set-row"><div class="gate-wrap"><label>Порог микрофона<small>Голос проходит, только когда громче отметки. Поднимите её, если друзья слышат фильм или шум.</small></label>
@@ -798,7 +798,7 @@ function resetPlayer() {
   if (P.yt) { try { P.yt.destroy(); } catch {} P.yt = null; }
   if (P.vk) { try { P.vk.destroy(); } catch {} P.vk = null; }
   const vf = $('#vkFrame'); if (vf) vf.remove();
-  P.vkState = 'unstarted'; P.vkTime = 0; P.vkDur = 0; P.vkWant = false; P.vkStarted = false; P.loadedAt = performance.now();
+  P.vkState = 'unstarted'; P.vkTime = 0; P.vkDur = 0; P.vkWant = false; P.vkStarted = false; P.ytStarted = false; P.loadedAt = performance.now();
   try { Glow.reset(); } catch {}
   $('#yt') || $('#ytWrap').prepend(Object.assign(document.createElement('div'), { id: 'yt' }));
   video.pause(); video.removeAttribute('src'); video.load();
@@ -894,7 +894,7 @@ async function loadYT(id) {
     P.yt = new YT.Player('yt', {
       videoId: id, width: '100%', height: '100%',
       playerVars: { controls: 1, modestbranding: 1, rel: 0, playsinline: 1, fs: 0 },
-      events: { onReady: () => { P.ready = true; P.applyVol(); res(); }, onStateChange: e => { P.buffering = e.data === 3; $('#spinner').classList.add('hidden'); embedUserEvent(e.data === 1 ? 'play' : e.data === 2 ? 'pause' : null); }, onError: () => { showLoadErr('YouTube не даёт встроить это видео. Попробуйте другое.'); res(); } },
+      events: { onReady: () => { P.ready = true; P.applyVol(); res(); }, onStateChange: e => { if (e.data === 1) P.ytStarted = true; P.buffering = e.data === 3; $('#spinner').classList.add('hidden'); embedUserEvent(e.data === 1 ? 'play' : e.data === 2 ? 'pause' : null); }, onError: () => { showLoadErr('YouTube не даёт встроить это видео. Попробуйте другое.'); res(); } },
     });
   });
 }
@@ -935,7 +935,9 @@ function embedUserEvent(type) {
   if (!type) return;
   const room = expectedPos(C.state), mine = P.time(), near = Math.abs(mine - room) < 4;
   if (type === 'play' && !C.state.playing) act('play', { pos: room });
-  if (type === 'pause' && C.state.playing) act('pause', { pos: near ? mine : room });
+  // «пауза» от плеера, который у этого человека так и не заиграл (браузер не дал запустить), — не пауза для всех
+  const reallyPlayed = P.isVK() ? P.vkStarted : P.ytStarted;
+  if (type === 'pause' && C.state.playing && reallyPlayed) act('pause', { pos: near ? mine : room });
 }
 let seekWatch = { t: null, w: 0, cand: null };
 setInterval(() => {   // перемотка ползунком YouTube/VK
