@@ -452,7 +452,7 @@ details li{margin:4px 0}
 <div class="modal-bg hidden" id="setModal">
   <div class="modal">
     <h3>Звук и связь</h3>
-    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 9</span></p>
+    <p class="hint">Настройки сохраняются только в этом браузере. <span style="color:var(--faint)">Версия сайта: 10</span></p>
     <div class="set-row"><label>Микрофон</label><select id="micSel"></select></div>
     <div class="set-row"><label>Камера</label><select id="camSel"></select></div>
     <div class="set-row"><div class="gate-wrap"><label>Порог микрофона<small>Голос проходит, только когда громче отметки. Поднимите её, если друзья слышат фильм или шум.</small></label>
@@ -710,7 +710,7 @@ function onMessage(m, conn) {
     case 'members': C.members = m.list; renderMembers(); syncMesh(); break;
     case 'state':
       if (m.from !== me.id) { const verb = { play: '▶ включил(а)', pause: '❚❚ поставил(а) на паузу', seek: '⇄ перемотал(а) на ' + fmt(m.state.pos) }[m.action]; if (verb) toast(`${m.by} ${verb}`); }
-      applyState(m.state, m.action === 'seek'); break;
+      applyState(m.state, m.action === 'seek' && m.from !== me.id); break;
     case 'chat': case 'sys': case 'media': C.chat.push(m); addMsg(m); break;
     case 'react': showReaction(m.e, m.name); break;
     case 'pos': if (m.id !== me.id) C.pos[m.id] = { p: m.p, s: m.s, at: m.at, got: Date.now() }; break;
@@ -922,9 +922,13 @@ async function tryPlay() {
 
 /* Действия внутри встроенного плеера (YouTube/VK) — кнопки самого плеера.
    Свои программные команды помечаем как «ожидаемые», остальное — это нажал человек. */
+// пока человек сам жмёт кнопки встроенного плеера, автоподстройка ему не мешает
+function handsOff() { return P.isEmbed() && performance.now() - (P.userTouch || 0) < 3000; }
 function embedUserEvent(type) {
-  if (!type || !P.isEmbed() || !C.state || !C.state.url || P.inAd) return;
+  if (!P.isEmbed() || !C.state || !C.state.url || P.inAd) return;
   if (performance.now() < P.expectUntil) return;
+  P.userTouch = performance.now();
+  if (!type) return;
   if (type === 'play' && !C.state.playing) act('play');
   if (type === 'pause' && C.state.playing) act('pause');
 }
@@ -934,7 +938,7 @@ setInterval(() => {   // перемотка ползунком YouTube/VK
   const t = P.time(), w = performance.now();
   if (seekWatch.t !== null && !P.inAd && w > P.expectUntil) {
     const predicted = seekWatch.t + (P.paused() ? 0 : (w - seekWatch.w) / 1000);
-    if (Math.abs(t - predicted) > 2.5 && Math.abs(t - seekWatch.t) > 2.5) act('seek', { pos: t });
+    if (Math.abs(t - predicted) > 2.5 && Math.abs(t - seekWatch.t) > 2.5) { P.userTouch = w; act('seek', { pos: t }); }
   }
   seekWatch = { t, w };
 }, 500);
@@ -944,11 +948,13 @@ setInterval(() => {
   const s = C.state; if (!s || !s.url || !P.ready || P.blocked) return;
   const exp = expectedPos(s), cur = P.time(), diff = exp - cur;
   if (s.playing) {
+    if (handsOff()) return;
     if (P.paused() && !video.ended) { tryPlay(); return; }
     if (Math.abs(diff) > 2) { P.seek(exp); P.rate(1); }
     else if (!P.isEmbed() && Math.abs(diff) > 0.15) P.rate(1 + Math.max(-0.08, Math.min(0.08, diff * 0.4)));
     else P.rate(1);
   } else {
+    if (handsOff()) return;
     if (!P.paused()) P.pause();
     if (Math.abs(diff) > 0.5) P.seek(exp);
   }
@@ -1083,7 +1089,7 @@ function act(type, extra = {}) {
   if (type === 'play') { s.playing = true; s.pos = P.ready ? P.time() : expectedPos(C.state); }
   if (type === 'pause') { s.playing = false; s.pos = P.ready ? P.time() : expectedPos(C.state); }
   if (type === 'seek') { s.pos = Math.max(0, Math.min(extra.pos, P.dur() || extra.pos)); }
-  if (type !== 'load') applyState(s, type === 'seek');
+  if (type !== 'load') applyState(s, type === 'seek' && !P.isEmbed());
   if (!send({ t: 'action', a: { type, pos: type === 'load' ? 0 : s.pos, ...extra } })) toast('Нет связи с комнатой…');
 }
 function togglePlay() { if (!C.state || !C.state.url) return openSrc(); act(C.state.playing ? 'pause' : 'play'); }
